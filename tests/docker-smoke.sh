@@ -11,14 +11,14 @@ cleanup() {
     docker logs "$name" 2>&1 | tail -30 || true
   fi
   docker rm -f "$name" >/dev/null 2>&1 || true
-  rm -rf "$work"
+  rm -rf "$work" || echo "Kon tijdelijke Docker-testbestanden niet verwijderen" >&2
   exit "$code"
 }
 trap cleanup EXIT
 mkdir -p "$work/config/plugins/Chat" "$work/cache"
 cp publish/Jellyfin.Plugin.Chat.dll "$work/config/plugins/Chat/"
 chmod -R a+rwX "$work"
-docker run -d --name "$name" -p 127.0.0.1:18096:8096 \
+docker run -d --user "$(id -u):$(id -g)" --name "$name" -p 127.0.0.1:18096:8096 \
   -v "$work/config:/config" -v "$work/cache:/cache" jellyfin/jellyfin:12.4 >/dev/null
 url=http://127.0.0.1:18096
 stage="wachten op Jellyfin"
