@@ -29,3 +29,7 @@ De server controleert toegang en schrijfrechten bij ieder verzoek. Chatgegevens 
 ### Interface testen
 
 Voer `npm ci` en `npm run test:ui` uit voor de browsertests van de chatinterface. De releaseworkflow test daarnaast de serverplugin in een Jellyfin 12.4-Dockercontainer.
+
+### Privégesprekken en groepen
+
+Iedere gebruiker met chattoegang kan een één-op-één-gesprek of een groep met geselecteerde gebruikers starten via **Nieuwe chat**. Een privégesprek is niet geheim voor beheerders: alle Jellyfin-beheerders hebben automatisch toegang tot alle gesprekken en kunnen ze verwijderen. Alleen beheerders kunnen aankondigingsgroepen en groepen voor iedereen maken.
