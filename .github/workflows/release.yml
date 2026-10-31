@@ -1,0 +1,47 @@
+name: Build and publish Jellyfin repository
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: jellyfin-plugin-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Build plugin
+        run: |
+          dotnet publish Jellyfin.Plugin.Chat.csproj -c Release -o publish \
+            -p:Version=1.0.0.${{ github.run_number }}
+          node --check Web/chat.js
+      - name: Package and publish repository
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_NUMBER: ${{ github.run_number }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          version="1.0.0.${RUN_NUMBER}"
+          tag="chat-v${version}"
+          archive="Chat_${version}.zip"
+          (cd publish && zip -j "../${archive}" Jellyfin.Plugin.Chat.dll)
+          python3 scripts/create_manifest.py "$archive" "$version" "$REPOSITORY" "$tag" > manifest.json
+          # Keep the release invisible until both assets have uploaded successfully.
+          gh release create "$tag" --target "$COMMIT_SHA" --draft --title "Chat ${version}" --notes "Jellyfin 10.10.7 chatplugin. Zie de README voor de benodigde Jellyfin Web-aanpassing."
+          gh release upload "$tag" "$archive" manifest.json
+          gh release edit "$tag" --draft=false --latest
