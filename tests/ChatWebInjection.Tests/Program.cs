@@ -55,3 +55,11 @@ Check(nonHtml == "<body>x</body>", "Non-HTML responses must pass through");
 var (_, head) = await Run("/web/index.html", "", "<body>x</body>", method: "HEAD");
 Check(head == "<body>x</body>", "HEAD must pass through");
 Console.WriteLine("Chat web injection tests passed.");
+// Jellyfin serializes responses in PascalCase by default; these contracts must stay camelCase.
+var roomJson = System.Text.Json.JsonSerializer.Serialize(new Room { Name = "Algemeen", AdminOnly = true });
+using var roomDoc = System.Text.Json.JsonDocument.Parse(roomJson);
+Check(roomDoc.RootElement.GetProperty("name").GetString() == "Algemeen", "Room API names must match the client");
+Check(roomDoc.RootElement.GetProperty("adminOnly").GetBoolean(), "Room permissions must use the expected API name");
+var messageJson = System.Text.Json.JsonSerializer.Serialize(new Message { Text = "test", UserName = "admin" });
+using var messageDoc = System.Text.Json.JsonDocument.Parse(messageJson);
+Check(messageDoc.RootElement.GetProperty("userName").GetString() == "admin", "Message API names must match the client");

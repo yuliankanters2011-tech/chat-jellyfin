@@ -59,7 +59,7 @@ public class ChatController : ControllerBase
     public IActionResult Settings()
     {
         var u = Current; if (u == null || !Admin(u)) return Forbid();
-        return Ok(Store.Read(s => new { s.Everyone, s.AllowedUsers, s.Rooms, users = _users.GetUsers().Select(x => new { id = x.Id, name = x.Username }).ToArray() }));
+        return Ok(Store.Read(s => new { everyone = s.Everyone, allowedUsers = s.AllowedUsers, rooms = s.Rooms, users = _users.GetUsers().Select(x => new { id = x.Id, name = x.Username }).ToArray() }));
     }
     public class SettingsRequest { public bool Everyone { get; set; } public List<Guid>? AllowedUsers { get; set; } }
     [Authorize, HttpPut("settings")]
