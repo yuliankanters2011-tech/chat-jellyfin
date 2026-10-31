@@ -8,11 +8,7 @@ cleanup() {
   code=$?
   if (( code != 0 )); then
     echo "::error::Docker-test mislukt tijdens: $stage (exit $code)"
-    docker logs "$name" > "$work/docker.log" 2>&1 || true
-    tail -30 "$work/docker.log" | while IFS= read -r line; do
-      line=${line//%/%25}; line=${line//$'\r'/%0D}; line=${line//$'\n'/%0A}
-      echo "::error::$line"
-    done
+    docker logs "$name" 2>&1 | tail -30 || true
   fi
   docker rm -f "$name" >/dev/null 2>&1 || true
   rm -rf "$work"
@@ -69,7 +65,11 @@ if ! jq -e '.enabled == true and .admin == true' "$work/me.json" >/dev/null; the
   exit 1
 fi
 stage="beheerinstellingen controleren"
-request "$url/ChatPlugin/settings" | jq -e '(.everyone == true) and (.allowedUsers | type == "array") and (.users | length > 0)' >/dev/null
+request "$url/ChatPlugin/settings" > "$work/settings.json"
+if ! jq -e '(.everyone == true) and (.allowedUsers | type == "array") and (.users | length > 0)' "$work/settings.json" >/dev/null; then
+  echo "::error::Onverwachte instellingen: $(tr -d '\r\n' < "$work/settings.json" | head -c 500)"
+  exit 1
+fi
 stage="groepen controleren"
 room=$(request "$url/ChatPlugin/rooms" | jq -er '.[0] | select(.name == "Algemeen") | .id')
 stage="bericht sturen"
