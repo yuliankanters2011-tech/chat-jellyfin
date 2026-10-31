@@ -59,7 +59,11 @@ token=$(curl -fsS -X POST -H "Authorization: $auth" -H 'Content-Type: applicatio
   -d '{"Username":"chat-test","Pw":"chat-test-password"}' "$url/Users/AuthenticateByName" | jq -er '.AccessToken')
 request() { curl -fsS -H "X-Emby-Token: $token" "$@"; }
 stage="chattoegang controleren"
-request "$url/ChatPlugin/me" > "$work/me.json"
+status=$(curl -sS -o "$work/me.json" -w '%{http_code}' -H "X-Emby-Token: $token" "$url/ChatPlugin/me")
+if [[ "$status" != 200 ]]; then
+  echo "::error::Chatprofiel HTTP $status: $(tr -d '\r\n' < "$work/me.json" | head -c 500)"
+  exit 1
+fi
 if ! jq -e '.enabled == true and .admin == true' "$work/me.json" >/dev/null; then
   echo "::error::Onverwacht chatprofiel: $(tr -d '\r\n' < "$work/me.json" | head -c 500)"
   exit 1
