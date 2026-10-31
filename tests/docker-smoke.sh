@@ -79,4 +79,39 @@ request -X POST -H 'Content-Type: application/json' -d '{"text":"testbericht"}' 
 request "$url/ChatPlugin/rooms/$room/messages" | jq -e '.[-1] | .text == "testbericht" and .userName == "chat-test"' >/dev/null
 stage="aankondigingsgroep aanmaken"
 request -X POST -H 'Content-Type: application/json' -d '{"name":"Aankondigingen","adminOnly":true,"members":[]}' "$url/ChatPlugin/rooms" | jq -e '.name == "Aankondigingen" and .adminOnly == true' >/dev/null
+stage="privéchats en groepsrechten controleren"
+alice=$(request -X POST -H 'Content-Type: application/json' -d '{"Name":"alice","Password":"test-password"}' "$url/Users/New" | jq -er '.Id')
+bob=$(request -X POST -H 'Content-Type: application/json' -d '{"Name":"bob","Password":"test-password"}' "$url/Users/New" | jq -er '.Id')
+outsider=$(request -X POST -H 'Content-Type: application/json' -d '{"Name":"outsider","Password":"test-password"}' "$url/Users/New" | jq -er '.Id')
+login() {
+  local username=$1
+  curl -fsS -X POST -H "Authorization: MediaBrowser Client=\"ChatTest\", Device=\"CI\", DeviceId=\"ci-$username\", Version=\"1.0\"" -H 'Content-Type: application/json' \
+    -d "{\"Username\":\"$username\",\"Pw\":\"test-password\"}" "$url/Users/AuthenticateByName" | jq -er '.AccessToken'
+}
+alice_token=$(login alice); bob_token=$(login bob); outsider_token=$(login outsider)
+as_user() { local t=$1; shift; curl -fsS -H "Authorization: MediaBrowser Token=\"$t\"" "$@"; }
+alice_header="Authorization: MediaBrowser Token=\"$alice_token\""
+outsider_header="Authorization: MediaBrowser Token=\"$outsider_token\""
+# Direct conversations are reused in both directions and remain visible to admins.
+direct=$(as_user "$alice_token" -X POST -H 'Content-Type: application/json' -d "{\"userId\":\"$bob\"}" "$url/ChatPlugin/direct" | jq -er '.id')
+reverse=$(as_user "$bob_token" -X POST -H 'Content-Type: application/json' -d "{\"userId\":\"$alice\"}" "$url/ChatPlugin/direct" | jq -er '.id')
+[[ "$direct" == "$reverse" ]]
+request "$url/ChatPlugin/rooms" | jq -e --arg id "$direct" 'any(.[]; .id == $id)' >/dev/null
+as_user "$alice_token" -X POST -H 'Content-Type: application/json' -d '{"text":"privé"}' "$url/ChatPlugin/rooms/$direct/messages" >/dev/null
+as_user "$bob_token" "$url/ChatPlugin/rooms/$direct/messages" | jq -e '.[-1].text == "privé"' >/dev/null
+[[ $(curl -s -o /dev/null -w '%{http_code}' -H "$outsider_header" "$url/ChatPlugin/rooms/$direct/messages") == 403 ]]
+[[ $(curl -s -o /dev/null -w '%{http_code}' -X DELETE -H "$alice_header" "$url/ChatPlugin/rooms/$direct") == 403 ]]
+group=$(as_user "$alice_token" -X POST -H 'Content-Type: application/json' -d "{\"name\":\"Vrienden\",\"members\":[\"$bob\"]}" "$url/ChatPlugin/rooms" | jq -er '.id')
+as_user "$alice_token" "$url/ChatPlugin/rooms" | jq -e --arg id "$group" 'any(.[]; .id == $id)' >/dev/null
+as_user "$bob_token" "$url/ChatPlugin/rooms" | jq -e --arg id "$group" 'any(.[]; .id == $id)' >/dev/null
+[[ $(curl -s -o /dev/null -w '%{http_code}' -H "$outsider_header" "$url/ChatPlugin/rooms/$group/messages") == 403 ]]
+[[ $(curl -s -o /dev/null -w '%{http_code}' -X POST -H "$alice_header" -H 'Content-Type: application/json' -d '{"name":"openbaar","members":[]}' "$url/ChatPlugin/rooms") == 400 ]]
+[[ $(curl -s -o /dev/null -w '%{http_code}' -X POST -H "$alice_header" -H 'Content-Type: application/json' -d "{\"name\":\"nieuws\",\"adminOnly\":true,\"members\":[\"$bob\"]}" "$url/ChatPlugin/rooms") == 400 ]]
+# Disabling chat for Bob immediately blocks access and invitations.
+request -X PUT -H 'Content-Type: application/json' -d "{\"everyone\":false,\"allowedUsers\":[\"$alice\"]}" "$url/ChatPlugin/settings" >/dev/null
+[[ $(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: MediaBrowser Token=\"$bob_token\"" "$url/ChatPlugin/rooms/$direct/messages") == 403 ]]
+[[ $(curl -s -o /dev/null -w '%{http_code}' -X POST -H "$alice_header" -H 'Content-Type: application/json' -d "{\"userId\":\"$bob\"}" "$url/ChatPlugin/direct") == 400 ]]
+request -X PUT -H 'Content-Type: application/json' -d '{"everyone":true,"allowedUsers":[]}' "$url/ChatPlugin/settings" >/dev/null
+request -X DELETE "$url/ChatPlugin/rooms/$direct" >/dev/null
+request -X DELETE "$url/ChatPlugin/rooms/$group" >/dev/null
 printf 'Jellyfin 12.4 Docker smoke test passed.\n'

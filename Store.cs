@@ -18,6 +18,8 @@ public class Room
     public string Name { get; set; } = "";
     [JsonPropertyName("adminOnly")]
     public bool AdminOnly { get; set; }
+    [JsonPropertyName("direct")]
+    public bool Direct { get; set; }
     // An empty list means all users with chat access.
     [JsonPropertyName("members")]
     public List<Guid> Members { get; set; } = new();

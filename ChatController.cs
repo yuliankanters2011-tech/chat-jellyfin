@@ -69,13 +69,51 @@ public class ChatController : ControllerBase
         var u = Current; if (u == null || !Admin(u)) return Forbid();
         return Store.Change<IActionResult>(s => { s.Everyone = request.Everyone; s.AllowedUsers = (request.AllowedUsers ?? new()).Distinct().ToList(); return Ok(); });
     }
+    // Only people who can currently use chat are offered as conversation partners.
+    [Authorize, HttpGet("users")]
+    public IActionResult Users()
+    {
+        var u = Current; if (u == null) return Unauthorized();
+        return Store.Read<IActionResult>(s => !Enabled(s, u) ? Forbid() : Ok(_users.GetUsers()
+            .Where(x => x.Id != u.Id && Enabled(s, x) && !x.HasPermission(PermissionKind.IsDisabled))
+            .Select(x => new { id = x.Id, name = x.Username }).ToArray()));
+    }
     public class RoomRequest { public string? Name { get; set; } public bool AdminOnly { get; set; } public List<Guid>? Members { get; set; } }
     [Authorize, HttpPost("rooms")]
     public IActionResult CreateRoom([FromBody] RoomRequest request)
     {
-        var u = Current; if (u == null || !Admin(u)) return Forbid();
+        var u = Current; if (u == null) return Unauthorized();
         var name = request.Name?.Trim(); if (string.IsNullOrEmpty(name) || name.Length > 80) return BadRequest();
-        return Store.Change<IActionResult>(s => { var r = new Room { Name = name, AdminOnly = request.AdminOnly, Members = (request.Members ?? new()).Distinct().ToList() }; s.Rooms.Add(r); return Ok(r); });
+        var members = (request.Members ?? new()).Distinct().ToList();
+        if (members.Count > 100 || (!Admin(u) && (request.AdminOnly || members.Count == 0))) return BadRequest();
+        return Store.Change<IActionResult>(s => {
+            if (!Enabled(s, u)) return Forbid();
+            if (!Admin(u) && members.Any(id => {
+                if (id == Guid.Empty || id == u.Id) return true;
+                var member = _users.GetUserById(id);
+                return member == null || !Enabled(s, member) || member.HasPermission(PermissionKind.IsDisabled);
+            })) return BadRequest();
+            if (!Admin(u)) members.Add(u.Id);
+            var r = new Room { Name = name, AdminOnly = request.AdminOnly, Members = members };
+            s.Rooms.Add(r); return Ok(r);
+        });
+    }
+    public class DirectRequest { public Guid UserId { get; set; } }
+    [Authorize, HttpPost("direct")]
+    public IActionResult CreateDirect([FromBody] DirectRequest request)
+    {
+        var u = Current; if (u == null) return Unauthorized();
+        if (request.UserId == Guid.Empty || request.UserId == u.Id) return BadRequest();
+        var other = _users.GetUserById(request.UserId);
+        if (other == null || other.HasPermission(PermissionKind.IsDisabled)) return BadRequest();
+        return Store.Change<IActionResult>(s => {
+            if (!Enabled(s, u)) return Forbid();
+            if (!Enabled(s, other)) return BadRequest();
+            var existing = s.Rooms.FirstOrDefault(r => r.Direct && r.Members.Count == 2 && r.Members.Contains(u.Id) && r.Members.Contains(other.Id));
+            if (existing != null) return Ok(existing);
+            var room = new Room { Name = u.Username + " & " + other.Username, Direct = true, Members = new List<Guid> { u.Id, other.Id } };
+            s.Rooms.Add(room); return Ok(room);
+        });
     }
     [Authorize, HttpDelete("rooms/{id:guid}")]
     public IActionResult DeleteRoom(Guid id)

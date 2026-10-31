@@ -25,6 +25,8 @@ async function setup(header = '<div class="skinHeader"><div class="headerRight">
     let data = null;
     if (path === 'me') data = { enabled, admin, userId };
     else if (path === 'rooms' && options.method === 'GET') data = rooms;
+    else if (path === 'users') data = [{ id: 'other', name: 'Andere gebruiker' }];
+    else if (path === 'direct' && options.method === 'POST') { data = { id: 'dm', name: 'Privé', direct: true }; rooms = [...rooms, data]; }
     else if (path === 'settings' && options.method === 'GET') data = { everyone: true, allowedUsers: [], rooms, users: [{ id: userId, name: 'Tester' }] };
     else if (path.endsWith('/messages') && options.method === 'GET') data = messages;
     else if (path.endsWith('/messages') && options.method === 'POST') messages = [...messages, { userId, userName: 'Tester', text: JSON.parse(options.body).text, time: '2026-01-01T12:01:00Z' }];
@@ -105,4 +107,23 @@ test('account switch closes the panel instead of showing the previous user’s m
   w.document.querySelector('#jf-chat-button').click(); await wait();
   setUser('10000000-0000-0000-0000-000000000000'); await intervals[0]();
   assert.equal(w.document.querySelector('#jf-chat').hidden, true);
+});
+
+
+test('non-admin can start a direct chat and a group, with admin visibility explained', async t => {
+  const { w, calls, intervals, setAdmin, cleanup } = await setup(); t.after(cleanup);
+  setAdmin(false); await intervals[0]();
+  const doc = w.document; doc.querySelector('#jf-chat-button').click(); await wait();
+  doc.querySelector('[aria-label="Nieuwe chat"]').click(); await wait();
+  assert.match(doc.querySelector('.jfc-settings').textContent, /Beheerders hebben automatisch toegang/);
+  doc.querySelector('input[type=radio]').click();
+  [...doc.querySelectorAll('button')].find(b => b.textContent === 'Chat starten').click(); await wait();
+  assert.ok(calls.some(c => c.url.endsWith('/direct') && JSON.parse(c.body).userId === 'other'));
+  assert.equal(doc.querySelector('#jfc-room-select').value, 'dm');
+  doc.querySelector('[aria-label="Nieuwe chat"]').click(); await wait();
+  const mode = doc.querySelector('#jfc-create-mode'); mode.value = 'group'; mode.dispatchEvent(new w.Event('change'));
+  doc.querySelector('[aria-label="Groepsnaam"]').value = 'Vrienden';
+  doc.querySelector('input[type=checkbox]').click();
+  [...doc.querySelectorAll('button')].find(b => b.textContent === 'Groep maken').click(); await wait();
+  assert.ok(calls.some(c => c.url.endsWith('/rooms') && c.method === 'POST' && JSON.parse(c.body).members[0] === 'other'));
 });

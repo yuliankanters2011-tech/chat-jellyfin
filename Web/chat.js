@@ -83,6 +83,7 @@
     close: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
     settings: 'M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.3 7.3 0 0 0-1.63-.94l-.36-2.54a.49.49 0 0 0-.49-.42h-3.84a.49.49 0 0 0-.49.42l-.36 2.54c-.59.23-1.14.55-1.63.94l-2.39-.96a.49.49 0 0 0-.61.22L2.64 8.84a.49.49 0 0 0 .12.64L4.79 11c-.05.33-.08.66-.08 1s.03.67.08 1l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.61.22l2.39-.96c.49.39 1.04.71 1.63.94l.36 2.54c.04.24.24.42.49.42h3.84c.25 0 .45-.18.49-.42l.36-2.54c.59-.23 1.14-.55 1.63-.94l2.39.96c.22.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.02-1.62zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z',
     back: 'M20 12H4m0 0 7-7m-7 7 7 7',
+    add: 'M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z',
     send: 'M2 21 23 12 2 3v7l15 2-15 2z'
   };
   function icon(name) {
@@ -96,7 +97,7 @@
   const button = el('button'); button.id = 'jf-chat-button'; button.type = 'button'; button.title = 'Chat'; button.setAttribute('aria-label', 'Chat openen'); button.setAttribute('aria-expanded', 'false'); button.setAttribute('aria-controls', 'jf-chat'); button.append(icon('chat')); button.hidden = true;
   const panel = el('section'); panel.id = 'jf-chat'; panel.hidden = true; panel.setAttribute('role', 'region'); panel.setAttribute('aria-label', 'Chat');
   document.body.append(button, panel);
-  let me, rooms = [], selected = '', settingsOpen = false, busy = false, lastMessages = '', firstLoad = true;
+  let me, rooms = [], selected = '', settingsOpen = false, creating = false, busy = false, lastMessages = '', firstLoad = true;
 
   // Jellyfin 12.4 has both a classic header and a React/MUI toolbar. Reattach after SPA navigation.
   function placeButton() {
@@ -136,14 +137,19 @@
     panel.replaceChildren();
     const header = el('header', null, 'jfc-header');
     const brand = el('div', null, 'jfc-brand'); brand.append(icon('chat')); brand.setAttribute('aria-hidden', 'true');
-    const heading = el('div', null, 'jfc-heading'); heading.append(el('strong', settingsOpen ? 'Chat beheren' : 'Chat'), el('small', settingsOpen ? 'Instellingen en groepen' : 'Samen praten op Jellyfin'));
+    const heading = el('div', null, 'jfc-heading'); heading.append(el('strong', creating ? 'Nieuwe chat' : settingsOpen ? 'Chat beheren' : 'Chat'), el('small', creating ? 'Start een gesprek' : settingsOpen ? 'Instellingen en groepen' : 'Samen praten op Jellyfin'));
     header.append(brand, heading);
-    if (me.admin) header.append(actionIcon(settingsOpen ? 'back' : 'settings', settingsOpen ? 'Terug naar chat' : 'Chat beheren', async () => { settingsOpen = !settingsOpen; firstLoad = true; try { await render(); } catch (e) { error(e); } }));
+    if (creating) header.append(actionIcon('back', 'Terug naar chat', async () => { creating = false; try { await render(); } catch(e) { error(e); } }));
+    else if (!settingsOpen) {
+      header.append(actionIcon('add', 'Nieuwe chat', async () => { creating = true; try { await render(); } catch(e) { error(e); } }));
+      if (me.admin) header.append(actionIcon('settings', 'Chat beheren', async () => { settingsOpen = true; try { await render(); } catch(e) { error(e); } }));
+    } else header.append(actionIcon('back', 'Terug naar chat', async () => { settingsOpen = false; try { await render(); } catch(e) { error(e); } }));
     header.append(actionIcon('close', 'Chat sluiten', closePanel)); panel.append(header);
     const err = el('div', null, 'jfc-error'); err.setAttribute('role', 'alert'); panel.append(err);
+    if (creating) { const main = el('main', null, 'jfc-settings'); panel.append(main); await renderCreate(main); return; }
     if (settingsOpen) { const main = el('main', null, 'jfc-settings'); panel.append(main); await renderSettings(main); return; }
     await refreshRooms();
-    if (!rooms.length) { const main = el('main', null, 'jfc-messages'); const empty = el('div', null, 'jfc-empty'); empty.append(el('strong', 'Nog geen groepen'), el('span', 'Een beheerder kan een groep aanmaken om te beginnen.')); main.append(empty); panel.append(main); return; }
+    if (!rooms.length) { const main = el('main', null, 'jfc-messages'); const empty = el('div', null, 'jfc-empty'); empty.append(el('strong', 'Nog geen groepen'), el('span', 'Maak een nieuwe chat om te beginnen.')); main.append(empty); panel.append(main); return; }
     const room = rooms.find(r => r.id === selected);
     const bar = el('div', null, 'jfc-room-bar'), mark = el('span', '#', 'jfc-room-mark'), picker = el('div', null, 'jfc-room-picker');
     mark.setAttribute('aria-hidden', 'true'); const label = el('label', 'Groep'); label.htmlFor = 'jfc-room-select';
@@ -177,6 +183,38 @@
   }
   function checkbox(label, checked, parent) { const l = el('label', null, 'jfc-check'), i = el('input'); i.type = 'checkbox'; i.checked = checked; l.append(i, el('span', label)); parent.append(l); return i; }
   function section(main, title, description) { const node = el('section', null, 'jfc-section'); node.append(el('h3', title), el('p', description, 'jfc-hint')); main.append(node); return node; }
+  async function renderCreate(main) {
+    const users = await api('users');
+    const area = section(main, 'Start een gesprek', 'Beheerders hebben automatisch toegang tot alle chats en kunnen deze beheren.');
+    if (!users.length) { area.append(el('p', 'Er zijn geen andere gebruikers met chattoegang.', 'jfc-hint')); return; }
+    const modeLabel = el('label', 'Soort gesprek', 'jfc-hint'); modeLabel.htmlFor = 'jfc-create-mode'; area.append(modeLabel);
+    const mode = el('select', null, 'jfc-field'); mode.id = 'jfc-create-mode';
+    for (const [value, label] of [['direct', 'Eén-op-één'], ['group', 'Groep']]) { const o = el('option', label); o.value = value; mode.append(o); } area.append(mode);
+    const options = el('div'); area.append(options);
+    const draw = () => {
+      options.replaceChildren();
+      const name = el('input', null, 'jfc-field'); name.type = 'text'; name.placeholder = 'Naam van de groep'; name.setAttribute('aria-label', 'Groepsnaam'); name.maxLength = 80;
+      if (mode.value === 'group') { name.style.marginTop = '12px'; options.append(name); }
+      const members = el('fieldset'); members.append(el('legend', mode.value === 'direct' ? 'Kies een persoon' : 'Kies groepsleden'));
+      const choices = users.map(u => {
+        const l = el('label', null, 'jfc-check'), input = el('input'); input.type = mode.value === 'direct' ? 'radio' : 'checkbox'; input.name = 'jfc-member'; input.value = u.id; l.append(input, el('span', u.name)); members.append(l); return input;
+      });
+      options.append(members);
+      const create = el('button', mode.value === 'direct' ? 'Chat starten' : 'Groep maken', 'jfc-action'); create.type = 'button';
+      create.onclick = async () => {
+        const chosen = choices.filter(c => c.checked).map(c => c.value);
+        if (!chosen.length) { error(new Error('Kies ten minste één persoon.')); return; }
+        if (mode.value === 'group' && !name.value.trim()) { name.focus(); error(new Error('Vul een groepsnaam in.')); return; }
+        create.disabled = true;
+        try {
+          const room = mode.value === 'direct' ? await api('direct', 'POST', { userId: chosen[0] }) : await api('rooms', 'POST', { name: name.value, members: chosen, adminOnly: false });
+          selected = room.id; creating = false; firstLoad = true; lastMessages = ''; await render();
+        } catch(e) { error(e); create.disabled = false; }
+      };
+      options.append(create);
+    };
+    mode.onchange = draw; draw();
+  }
   async function renderSettings(main) {
     const data = await api('settings');
     const access = section(main, 'Chattoegang', 'Bepaal wie berichten en groepen kan bekijken. Beheerders hebben altijd toegang.');
@@ -192,8 +230,8 @@
     if (!data.rooms.length) groups.append(el('p', 'Nog geen groepen.', 'jfc-hint'));
     data.rooms.forEach(r => { const row = el('div', null, 'jfc-room-item'); row.append(el('span', r.name + (r.adminOnly ? ' · Aankondigingen' : ''))); const del = el('button', 'Verwijderen', 'jfc-delete'); del.type = 'button'; del.setAttribute('aria-label', r.name + ' verwijderen'); del.onclick = async () => { if (!confirm('Groep en alle berichten definitief verwijderen?')) return; del.disabled = true; try { await api('rooms/' + r.id, 'DELETE'); await render(); } catch(e) { error(e); del.disabled = false; } }; row.append(del); groups.append(row); });
   }
-  button.onclick = async () => { if (!panel.hidden) { closePanel(); return; } panel.hidden = false; button.setAttribute('aria-expanded', 'true'); settingsOpen = false; firstLoad = true; try { await render(); } catch(e) { error(e); } };
+  button.onclick = async () => { if (!panel.hidden) { closePanel(); return; } panel.hidden = false; button.setAttribute('aria-expanded', 'true'); settingsOpen = false; creating = false; firstLoad = true; try { await render(); } catch(e) { error(e); } };
   panel.addEventListener('keydown', event => { if (event.key === 'Escape') closePanel(); });
   async function check() { try { const current = await api('me'); if (me && normalizeId(me.userId) !== normalizeId(current.userId)) { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); selected = ''; lastMessages = ''; } me = current; button.hidden = !me.enabled; if (!me.enabled) { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); } } catch { button.hidden = true; panel.hidden = true; button.setAttribute('aria-expanded', 'false'); me = null; } }
-  check(); setInterval(check, 10000); setInterval(() => { if (!panel.hidden && !settingsOpen) loadMessages().catch(error); }, 4000);
+  check(); setInterval(check, 10000); setInterval(() => { if (!panel.hidden && !settingsOpen && !creating) loadMessages().catch(error); }, 4000);
 })();
