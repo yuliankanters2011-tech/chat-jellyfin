@@ -73,9 +73,13 @@ test('classic header, safe messages, sending and settings work', async t => {
 });
 
 test('modern toolbar and navigation reattach the button; fallback does not cover header', async t => {
-  const { w, cleanup } = await setup('<header class="MuiAppBar-root"><div class="MuiToolbar-root"><div></div><div class="toolbar-actions"><button>Search</button></div><div><button aria-haspopup="true" aria-controls="user-menu">User</button></div></div></header>'); t.after(cleanup);
+  const { w, cleanup } = await setup('<header class="MuiAppBar-root"><div class="MuiToolbar-root"><div></div><div class="toolbar-actions"><button aria-haspopup="true" aria-controls="sync-menu">Sync</button><button aria-haspopup="true" aria-controls="cast-menu">Cast</button><button>Search</button></div><div><button aria-haspopup="true" aria-controls="app-user-menu">User</button></div></div></header>'); t.after(cleanup);
   const doc = w.document, button = doc.querySelector('#jf-chat-button');
   assert.equal(button.parentElement.className, 'toolbar-actions');
+  assert.equal(button.previousElementSibling.textContent, 'Search');
+  assert.equal(doc.querySelectorAll('#jf-chat-button').length, 1);
+  assert.ok(button.querySelector('svg'));
+  assert.equal(button.textContent, '');
   doc.querySelector('header').remove(); await wait();
   assert.equal(button.parentElement, doc.body);
   assert.ok(button.classList.contains('jfc-fallback'));

@@ -5,12 +5,12 @@
 
   const style = document.createElement('style');
   style.textContent = `
-    #jf-chat-button { box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; padding:10px; border:0; border-radius:50%; background:transparent; color:inherit; cursor:pointer; flex-shrink:0; }
+    #jf-chat-button { box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; width:48px; height:48px; padding:12px; border:0; border-radius:50%; background:transparent; color:inherit; cursor:pointer; flex-shrink:0; }
     #jf-chat-button:hover, #jf-chat-button[aria-expanded="true"] { background:rgba(255,255,255,.1); }
     #jf-chat-button:focus-visible, #jf-chat :focus-visible { outline:2px solid #00a4dc; outline-offset:2px; }
     #jf-chat-button[hidden], #jf-chat[hidden] { display:none !important; }
     #jf-chat-button.jfc-fallback { position:fixed; right:16px; bottom:20px; z-index:1100; background:#242424; color:#fff; box-shadow:0 4px 16px #0009; }
-    #jf-chat-button svg, #jf-chat svg { width:22px; height:22px; fill:currentColor; flex:none; }
+    #jf-chat-button svg, #jf-chat svg { width:24px; height:24px; fill:currentColor; flex:none; }
     #jf-chat { --jfc-accent:#00a4dc; --jfc-muted:#a9a9b3; box-sizing:border-box; position:fixed; z-index:1300; top:64px; right:clamp(12px, 2vw, 28px); width:min(410px, calc(100vw - 24px)); height:min(650px, calc(100dvh - 80px)); min-height:0; display:flex; flex-direction:column; overflow:hidden; border:1px solid rgba(255,255,255,.12); border-radius:12px; background:#202124; color:#eee; box-shadow:0 12px 40px rgba(0,0,0,.55); font:inherit; font-size:14px; }
     #jf-chat *, #jf-chat *::before, #jf-chat *::after { box-sizing:border-box; }
     #jf-chat button, #jf-chat input, #jf-chat select { font:inherit; }
@@ -101,7 +101,7 @@
   // Jellyfin 12.4 has both a classic header and a React/MUI toolbar. Reattach after SPA navigation.
   function placeButton() {
     const legacy = document.querySelector('.skinHeader:not(.osdHeader) .headerRight');
-    const userButton = document.querySelector('.MuiAppBar-root .MuiToolbar-root button[aria-haspopup="true"][aria-controls]');
+    const userButton = document.querySelector('.MuiAppBar-root .MuiToolbar-root button[aria-controls="app-user-menu"]');
     const toolbar = userButton?.closest('.MuiToolbar-root');
     const modern = userButton?.parentElement?.previousElementSibling;
     const target = (toolbar && modern?.parentElement === toolbar ? modern : null) || (legacy && !legacy.closest('.hide, [hidden], [aria-hidden="true"]') ? legacy : null);
