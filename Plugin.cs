@@ -7,6 +7,8 @@ public class Plugin : BasePlugin
 {
     public Plugin(IApplicationPaths paths)
     {
+        var assembly = GetType().Assembly;
+        SetAttributes(assembly.Location, Path.GetDirectoryName(assembly.Location)!, assembly.GetName().Version!);
         Store.Initialize(Path.Combine(paths.DataPath, "jellyfin-chat.json"));
     }
     public override string Name => "Chat";

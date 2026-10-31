@@ -30,7 +30,11 @@ for _ in $(seq 1 90); do
   if curl -fsS "$url/System/Info/Public" > /dev/null 2>&1; then break; fi
   sleep 2
 done
-curl -fsS "$url/System/Info/Public" | jq -e '.Version | startswith("12.4")' >/dev/null
+curl -fsS "$url/System/Info/Public" > "$work/system.json"
+if ! jq -e '(.Version // .version // "") | startswith("12.4")' "$work/system.json" >/dev/null; then
+  echo "::error::Onverwachte systeeminformatie: $(tr -d '\r\n' < "$work/system.json")"
+  exit 1
+fi
 stage="Jellyfin Web HTML ophalen en chat-script controleren"
 # Check that the actual static-file pipeline injects the script, not only a unit-test stub.
 curl -fsS -H 'Accept-Encoding: gzip' "$url/web/index.html" > "$work/page"
