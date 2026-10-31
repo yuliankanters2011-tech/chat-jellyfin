@@ -59,7 +59,11 @@ token=$(curl -fsS -X POST -H "Authorization: $auth" -H 'Content-Type: applicatio
   -d '{"Username":"chat-test","Pw":"chat-test-password"}' "$url/Users/AuthenticateByName" | jq -er '.AccessToken')
 request() { curl -fsS -H "X-Emby-Token: $token" "$@"; }
 stage="chattoegang controleren"
-request "$url/ChatPlugin/me" | jq -e '.enabled == true and .admin == true' >/dev/null
+request "$url/ChatPlugin/me" > "$work/me.json"
+if ! jq -e '.enabled == true and .admin == true' "$work/me.json" >/dev/null; then
+  echo "::error::Onverwacht chatprofiel: $(tr -d '\r\n' < "$work/me.json" | head -c 500)"
+  exit 1
+fi
 stage="beheerinstellingen controleren"
 request "$url/ChatPlugin/settings" | jq -e '(.everyone == true) and (.allowedUsers | type == "array") and (.users | length > 0)' >/dev/null
 stage="groepen controleren"
