@@ -26,7 +26,9 @@ ready=false
 for _ in $(seq 1 120); do
   # Jellyfin briefly starts a setup server during migrations. Wait for the
   # actual media server instead of treating the first HTTP 200 as readiness.
-  if curl --max-time 2 -fsS "$url/System/Info/Public" > "$work/system.json" 2>/dev/null &&
+  docker logs "$name" > "$work/startup.log" 2>&1 || true
+  if grep -q "Main: Startup complete" "$work/startup.log" &&
+      curl --max-time 2 -fsS "$url/System/Info/Public" > "$work/system.json" 2>/dev/null &&
       jq -e '(.Version // .version // "") | startswith("12.4")' "$work/system.json" >/dev/null 2>&1; then
     ready=true
     break
