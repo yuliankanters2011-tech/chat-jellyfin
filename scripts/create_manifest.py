@@ -19,7 +19,7 @@ manifest = [{
     "category": "General",
     "versions": [{
         "version": version,
-        "changelog": "Chatplugin voor Jellyfin 12.4. De webinterface vereist een handmatige aanpassing; zie de README.",
+        "changelog": "Chatplugin voor Jellyfin 12.4. Het chat-icoon wordt automatisch toegevoegd aan de door Jellyfin gehoste webclient.",
         "targetAbi": "12.4.0.0",
         "sourceUrl": f"https://github.com/{repository}/releases/download/{quote(tag, safe='')}/{quote(archive_path.name, safe='')}",
         "checksum": checksum,

@@ -26,6 +26,7 @@ jobs:
         run: |
           dotnet publish Jellyfin.Plugin.Chat.csproj -c Release -o publish \
             -p:Version=1.0.0.${{ github.run_number }}
+          dotnet run --project tests/ChatWebInjection.Tests/ChatWebInjection.Tests.csproj -c Release
           node --check Web/chat.js
       - name: Package and publish repository
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
@@ -42,6 +43,6 @@ jobs:
           (cd publish && zip -j "../${archive}" Jellyfin.Plugin.Chat.dll)
           python3 scripts/create_manifest.py "$archive" "$version" "$REPOSITORY" "$tag" > manifest.json
           # Keep the release invisible until both assets have uploaded successfully.
-          gh release create "$tag" --target "$COMMIT_SHA" --draft --title "Chat ${version}" --notes "Jellyfin 12.4 chatplugin. Zie de README voor de benodigde Jellyfin Web-aanpassing."
+          gh release create "$tag" --target "$COMMIT_SHA" --draft --title "Chat ${version}" --notes "Jellyfin 12.4 chatplugin. Chat-icoon voor de door Jellyfin gehoste webclient."
           gh release upload "$tag" "$archive" manifest.json
           gh release edit "$tag" --draft=false --latest
