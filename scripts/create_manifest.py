@@ -19,8 +19,8 @@ manifest = [{
     "category": "General",
     "versions": [{
         "version": version,
-        "changelog": "Chatplugin voor Jellyfin 10.10.7. De webinterface vereist een handmatige aanpassing; zie de README.",
-        "targetAbi": "10.10.7.0",
+        "changelog": "Chatplugin voor Jellyfin 12.4. De webinterface vereist een handmatige aanpassing; zie de README.",
+        "targetAbi": "12.4.0.0",
         "sourceUrl": f"https://github.com/{repository}/releases/download/{quote(tag, safe='')}/{quote(archive_path.name, safe='')}",
         "checksum": checksum,
         "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
