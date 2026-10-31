@@ -21,6 +21,7 @@ public class ChatController : ControllerBase
     [AllowAnonymous, HttpGet("chat.js")]
     public IActionResult Script()
     {
+        Response.Headers.CacheControl = "no-store";
         var stream = GetType().Assembly.GetManifestResourceStream("Jellyfin.Plugin.Chat.Web.chat.js");
         return stream == null ? NotFound() : File(stream, "application/javascript");
     }

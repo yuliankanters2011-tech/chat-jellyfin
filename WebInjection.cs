@@ -33,7 +33,7 @@ public sealed class ChatStartupFilter : IStartupFilter
 
 public static class ChatWebInjection
 {
-    private const string Script = "<script defer src=\"../ChatPlugin/chat.js\"></script>";
+    private static readonly string Script = $"<script defer src=\"../ChatPlugin/chat.js?v={typeof(ChatWebInjection).Assembly.GetName().Version}\"></script>";
     private static readonly string[] RequestHeaders = { "Accept-Encoding", "If-None-Match", "If-Modified-Since", "Range", "If-Range" };
 
     public static async Task InvokeAsync(HttpContext context, RequestDelegate next, string? baseUrl)

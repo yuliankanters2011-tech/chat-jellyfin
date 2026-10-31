@@ -36,7 +36,7 @@ static async Task<(DefaultHttpContext Context, string Body)> Run(
 }
 
 var (root, injected) = await Run("/web/", "", "<html><body>Hello</body></html>", conditional: true);
-Check(injected.Contains("<script defer src=\"../ChatPlugin/chat.js\"></script></body>"), "Root page must include script");
+Check(injected.Contains("<script defer src=\"../ChatPlugin/chat.js?v=") && injected.Contains("\"></script></body>"), "Root page must include the versioned script");
 Check(root.Response.ContentLength == Encoding.UTF8.GetByteCount(injected), "Content length must match injected bytes");
 Check(!root.Response.Headers.ContainsKey("ETag"), "Old ETag must be removed");
 Check(root.Response.Headers.CacheControl.ToString().Contains("no-store"), "Modified page must not be cached");
