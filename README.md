@@ -14,7 +14,7 @@ Een eenvoudige chatplug-in voor **Jellyfin Server 12.4** en Jellyfin Web. Gebrui
    ```
 
 3. Sla op, open de plugincatalogus, installeer **Chat** en herstart de server.
-4. Open Jellyfin Web op dezelfde server en herlaad de browser. De plugin voegt het chat-script automatisch toe aan de uitgestuurde webpagina; hij wijzigt geen HTML-bestanden. Kies **Chat → Beheer** als Jellyfin-beheerder om toegang en groepen in te stellen. Standaard is chat voor iedereen aan en bestaat de groep Algemeen. Geen leden selecteren betekent dat iedereen met chattoegang de groep kan zien; beheerders zien alle groepen. Verwijderen van een groep verwijdert ook de berichten definitief.
+4. Open Jellyfin Web op dezelfde server en herlaad de browser. De chatknop staat in de bovenbalk naast de andere knoppen; als de bovenbalk niet beschikbaar is staat hij tijdelijk rechtsonder. De plugin voegt het chat-script automatisch toe aan de uitgestuurde webpagina; hij wijzigt geen HTML-bestanden. Kies **Chat → Beheer** als Jellyfin-beheerder om toegang en groepen in te stellen. Standaard is chat voor iedereen aan en bestaat de groep Algemeen. Geen leden selecteren betekent dat iedereen met chattoegang de groep kan zien; beheerders zien alle groepen. Verwijderen van een groep verwijdert ook de berichten definitief.
 
 Het icoon werkt in Jellyfin Web dat door dezelfde Jellyfin-server wordt gehost. Een afzonderlijk gehoste webclient, native app, reverse proxy die zelf een webpagina serveert, of een proxy die scripts blokkeert wordt niet automatisch aangepast. Als je eerder handmatig de scriptregel hebt toegevoegd, hoeft dat niet opnieuw; verwijder die oude regel bij voorkeur zodat de webclient schoon blijft. Na installatie of een update is een serverherstart en browserherlaadbeurt nodig.
 
@@ -25,3 +25,7 @@ GitHub Actions bouwt bij een push naar `main` met .NET 10 de plugin en publiceer
 Voor handmatige installatie: bouw met `dotnet publish -c Release -o ./publish`, plaats `publish/Jellyfin.Plugin.Chat.dll` in een map `Chat` in de Jellyfin-pluginmap en herstart. Ook bij handmatige installatie wordt de webpagina automatisch aangepast tijdens het serveren. Voor andere Jellyfin-versies is compatibiliteit niet gegarandeerd.
 
 De server controleert toegang en schrijfrechten bij ieder verzoek. Chatgegevens staan in `jellyfin-chat.json` in de Jellyfin-datafolder; neem dit bestand mee in back-ups. Berichten worden onversleuteld op de server bewaard; gebruik HTTPS. Dit is geen end-to-end-versleutelde chat. De interface toont maximaal de laatste 200 berichten per groep. Privégesprekken kunnen worden gemaakt als groep met twee geselecteerde leden (beheerders behouden toegang).
+
+### Interface testen
+
+Voer `npm ci` en `npm run test:ui` uit voor de browsertests van de chatinterface. De releaseworkflow test daarnaast de serverplugin in een Jellyfin 12.4-Dockercontainer.
