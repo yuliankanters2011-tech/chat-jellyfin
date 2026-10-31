@@ -28,6 +28,17 @@ jobs:
             -p:Version=1.0.0.${{ github.run_number }}
           dotnet run --project tests/ChatWebInjection.Tests/ChatWebInjection.Tests.csproj -c Release
           node --check Web/chat.js
+      - name: Test on Jellyfin 12.4 in Docker
+        run: |
+          set +e
+          bash tests/docker-smoke.sh > smoke-test.log 2>&1
+          result=$?
+          if [ "$result" -ne 0 ]; then
+            python3 -c 'import pathlib; lines=pathlib.Path("smoke-test.log").read_text(errors="replace").splitlines(); chosen=[x for x in lines if "Docker-test mislukt" in x or "Chatprofiel HTTP" in x or "Onverwachte" in x]; text=" | ".join((chosen + lines[-15:])[-18:]); print("::error::" + text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))'
+          else
+            cat smoke-test.log
+          fi
+          exit "$result"
       - name: Package and publish repository
         if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
         env:
