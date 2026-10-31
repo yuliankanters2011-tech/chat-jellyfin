@@ -57,9 +57,9 @@ stage="aanmelden bij Jellyfin"
 auth='MediaBrowser Client="ChatTest", Device="CI", DeviceId="chat-test-ci", Version="1.0"'
 token=$(curl -fsS -X POST -H "Authorization: $auth" -H 'Content-Type: application/json' \
   -d '{"Username":"chat-test","Pw":"chat-test-password"}' "$url/Users/AuthenticateByName" | jq -er '.AccessToken')
-request() { curl -fsS -H "X-Emby-Token: $token" "$@"; }
+request() { curl -fsS -H "Authorization: MediaBrowser Token=\"$token\"" "$@"; }
 stage="chattoegang controleren"
-status=$(curl -sS -o "$work/me.json" -w '%{http_code}' -H "X-Emby-Token: $token" "$url/ChatPlugin/me")
+status=$(curl -sS -o "$work/me.json" -w '%{http_code}' -H "Authorization: MediaBrowser Token=\"$token\"" "$url/ChatPlugin/me")
 if [[ "$status" != 200 ]]; then
   echo "::error::Chatprofiel HTTP $status: $(tr -d '\r\n' < "$work/me.json" | head -c 500)"
   exit 1

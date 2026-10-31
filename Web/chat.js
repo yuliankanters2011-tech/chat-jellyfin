@@ -13,7 +13,7 @@
   function client() { return window.ApiClient; }
   async function api(path, method = 'GET', body) {
     const c = client(); if (!c || !c.accessToken()) throw new Error('Niet aangemeld');
-    const response = await fetch(c.getUrl('ChatPlugin/' + path), { method, headers: { 'X-Emby-Token': c.accessToken(), ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
+    const response = await fetch(c.getUrl('ChatPlugin/' + path), { method, headers: { 'Authorization': 'MediaBrowser Token="' + encodeURIComponent(c.accessToken()) + '"', ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
     if (!response.ok) throw new Error('Chatverzoek mislukt (' + response.status + ')');
     const content = await response.text(); return content ? JSON.parse(content) : null;
   }
