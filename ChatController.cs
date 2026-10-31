@@ -1,4 +1,6 @@
-using Jellyfin.Data.Enums;
+using Jellyfin.Data;
+using Jellyfin.Database.Implementations.Enums;
+using Jellyfin.Database.Implementations.Entities;
 using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -11,10 +13,10 @@ public class ChatController : ControllerBase
 {
     private readonly IUserManager _users;
     public ChatController(IUserManager users) => _users = users;
-    private Jellyfin.Data.Entities.User? Current => Guid.TryParse(User.FindFirst("Jellyfin-UserId")?.Value, out var id) ? _users.GetUserById(id) : null;
-    private static bool Admin(Jellyfin.Data.Entities.User u) => u.HasPermission(PermissionKind.IsAdministrator);
-    private static bool Enabled(ChatState s, Jellyfin.Data.Entities.User u) => Admin(u) || s.Everyone || s.AllowedUsers.Contains(u.Id);
-    private static bool Visible(Room r, Jellyfin.Data.Entities.User u) => Admin(u) || r.Members.Count == 0 || r.Members.Contains(u.Id);
+    private User? Current => Guid.TryParse(User.FindFirst("Jellyfin-UserId")?.Value, out var id) && id != Guid.Empty ? _users.GetUserById(id) : null;
+    private static bool Admin(User u) => u.HasPermission(PermissionKind.IsAdministrator);
+    private static bool Enabled(ChatState s, User u) => Admin(u) || s.Everyone || s.AllowedUsers.Contains(u.Id);
+    private static bool Visible(Room r, User u) => Admin(u) || r.Members.Count == 0 || r.Members.Contains(u.Id);
 
     [AllowAnonymous, HttpGet("chat.js")]
     public IActionResult Script()
@@ -57,7 +59,7 @@ public class ChatController : ControllerBase
     public IActionResult Settings()
     {
         var u = Current; if (u == null || !Admin(u)) return Forbid();
-        return Ok(Store.Read(s => new { s.Everyone, s.AllowedUsers, s.Rooms, users = _users.Users.Select(x => new { id = x.Id, name = x.Username }).ToArray() }));
+        return Ok(Store.Read(s => new { s.Everyone, s.AllowedUsers, s.Rooms, users = _users.GetUsers().Select(x => new { id = x.Id, name = x.Username }).ToArray() }));
     }
     public class SettingsRequest { public bool Everyone { get; set; } public List<Guid>? AllowedUsers { get; set; } }
     [Authorize, HttpPut("settings")]

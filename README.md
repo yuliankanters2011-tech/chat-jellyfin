@@ -1,10 +1,10 @@
 # Chat voor Jellyfin
 
-Een eenvoudige chatplug-in voor **Jellyfin Server 10.10.7** en Jellyfin Web. Gebruikers kunnen in groepen chatten; beheerders kunnen de chat voor iedereen of alleen geselecteerde gebruikers inschakelen, groepen met geselecteerde leden maken en aankondigingsgroepen instellen waarin alleen beheerders berichten mogen plaatsen. Beheerders hebben altijd toegang tot alle groepen. Berichten worden elke vier seconden opgehaald.
+Een eenvoudige chatplug-in voor **Jellyfin Server 12.4** en Jellyfin Web. Gebruikers kunnen in groepen chatten; beheerders kunnen de chat voor iedereen of alleen geselecteerde gebruikers inschakelen, groepen met geselecteerde leden maken en aankondigingsgroepen instellen waarin alleen beheerders berichten mogen plaatsen. Beheerders hebben altijd toegang tot alle groepen. Berichten worden elke vier seconden opgehaald.
 
 ## Installeren via een eigen repository
 
-**Jellyfin Server 10.10.7** is de doelversie. Na de eerste succesvolle release van deze repository:
+**Jellyfin Server 12.4** is de doelversie. Na de eerste succesvolle release van deze repository:
 
 1. Open in Jellyfin **Dashboard → Plug-ins → Repository's → Nieuwe repository**.
 2. Kies bijvoorbeeld `Chat` als naam en gebruik deze URL:
@@ -25,7 +25,7 @@ Een eenvoudige chatplug-in voor **Jellyfin Server 10.10.7** en Jellyfin Web. Geb
 
 ### Releases voor beheerders van deze repository
 
-GitHub Actions bouwt bij een push naar `main` met .NET 8 de plugin en publiceert een release met de zip en een `manifest.json` met de MD5-checksum. De bovenstaande URL verwijst naar het manifest van de nieuwste release. De URL werkt pas nadat deze workflow op `main` succesvol is uitgevoerd; GitHub Actions moet releases mogen aanmaken. Pull requests worden alleen gebouwd en publiceren niets. De plugin is nog niet getest in een draaiende Jellyfin-server.
+GitHub Actions bouwt bij een push naar `main` met .NET 10 de plugin en publiceert een release met de zip en een `manifest.json` met de MD5-checksum. De bovenstaande URL verwijst naar het manifest van de nieuwste release. De URL werkt pas nadat deze workflow op `main` succesvol is uitgevoerd; GitHub Actions moet releases mogen aanmaken. Pull requests worden alleen gebouwd en publiceren niets. Deze versie voor 12.4 is nog niet getest in een draaiende Jellyfin-server. Installeer de oude versie voor 10.10.7 niet op 12.4; verwijder die eerst en herstart de server.
 
 Voor handmatige installatie: bouw met `dotnet publish -c Release -o ./publish`, plaats `publish/Jellyfin.Plugin.Chat.dll` in een map `Chat` in de Jellyfin-pluginmap en herstart. Pas ook dan Jellyfin Web aan zoals hierboven beschreven. Voor andere Jellyfin-versies is compatibiliteit niet gegarandeerd.
 

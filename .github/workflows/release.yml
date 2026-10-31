@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
       - name: Build plugin
         run: |
           dotnet publish Jellyfin.Plugin.Chat.csproj -c Release -o publish \
@@ -42,6 +42,6 @@ jobs:
           (cd publish && zip -j "../${archive}" Jellyfin.Plugin.Chat.dll)
           python3 scripts/create_manifest.py "$archive" "$version" "$REPOSITORY" "$tag" > manifest.json
           # Keep the release invisible until both assets have uploaded successfully.
-          gh release create "$tag" --target "$COMMIT_SHA" --draft --title "Chat ${version}" --notes "Jellyfin 10.10.7 chatplugin. Zie de README voor de benodigde Jellyfin Web-aanpassing."
+          gh release create "$tag" --target "$COMMIT_SHA" --draft --title "Chat ${version}" --notes "Jellyfin 12.4 chatplugin. Zie de README voor de benodigde Jellyfin Web-aanpassing."
           gh release upload "$tag" "$archive" manifest.json
           gh release edit "$tag" --draft=false --latest
