@@ -27,6 +27,8 @@ jobs:
           dotnet publish Jellyfin.Plugin.Chat.csproj -c Release -o publish \
             -p:Version=1.0.0.${{ github.run_number }}
           dotnet run --project tests/ChatWebInjection.Tests/ChatWebInjection.Tests.csproj -c Release
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm run test:ui
           node --check Web/chat.js
       - name: Test on Jellyfin 12.4 in Docker
         run: |

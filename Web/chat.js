@@ -2,14 +2,123 @@
   'use strict';
   if (window.__jellyfinChatLoaded) return;
   window.__jellyfinChatLoaded = true;
+
   const style = document.createElement('style');
-  style.textContent = `#jf-chat-button{position:fixed;right:16px;top:12px;z-index:10000;background:#00a4dc;color:white;border:0;border-radius:50%;width:42px;height:42px;font-size:22px;cursor:pointer}#jf-chat{position:fixed;right:16px;top:62px;bottom:16px;width:min(390px,calc(100vw - 32px));z-index:10000;background:#202329;color:#fff;border:1px solid #555;border-radius:12px;box-shadow:0 8px 35px #0009;display:flex;flex-direction:column;font:14px sans-serif}#jf-chat[hidden]{display:none}#jf-chat header,#jf-chat footer{padding:12px;display:flex;gap:8px;align-items:center}#jf-chat main{padding:12px;overflow:auto;flex:1}#jf-chat button,#jf-chat select,#jf-chat input{font:inherit;padding:7px;border-radius:5px}#jf-chat select,#jf-chat input[type=text]{background:#333;color:#fff;border:1px solid #777;min-width:0}#jf-chat footer input{flex:1}#jf-chat .msg{padding:8px 0;border-bottom:1px solid #ffffff18;overflow-wrap:anywhere;white-space:pre-wrap}#jf-chat small{color:#aaa}#jf-chat .settings label{display:block;margin:8px 0}#jf-chat .settings fieldset{margin:12px 0;border:1px solid #555}#jf-chat .error{color:#ffb3a7}`;
+  style.textContent = `
+    #jf-chat-button { box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; width:44px; height:44px; padding:10px; border:0; border-radius:50%; background:transparent; color:inherit; cursor:pointer; flex-shrink:0; }
+    #jf-chat-button:hover, #jf-chat-button[aria-expanded="true"] { background:rgba(255,255,255,.1); }
+    #jf-chat-button:focus-visible, #jf-chat :focus-visible { outline:2px solid #00a4dc; outline-offset:2px; }
+    #jf-chat-button[hidden], #jf-chat[hidden] { display:none !important; }
+    #jf-chat-button.jfc-fallback { position:fixed; right:16px; bottom:20px; z-index:1100; background:#242424; color:#fff; box-shadow:0 4px 16px #0009; }
+    #jf-chat-button svg, #jf-chat svg { width:22px; height:22px; fill:currentColor; flex:none; }
+    #jf-chat { --jfc-accent:#00a4dc; --jfc-muted:#a9a9b3; box-sizing:border-box; position:fixed; z-index:1300; top:64px; right:clamp(12px, 2vw, 28px); width:min(410px, calc(100vw - 24px)); height:min(650px, calc(100dvh - 80px)); min-height:0; display:flex; flex-direction:column; overflow:hidden; border:1px solid rgba(255,255,255,.12); border-radius:12px; background:#202124; color:#eee; box-shadow:0 12px 40px rgba(0,0,0,.55); font:inherit; font-size:14px; }
+    #jf-chat *, #jf-chat *::before, #jf-chat *::after { box-sizing:border-box; }
+    #jf-chat button, #jf-chat input, #jf-chat select { font:inherit; }
+    #jf-chat button { cursor:pointer; }
+    #jf-chat button:disabled { opacity:.5; cursor:default; }
+    #jf-chat .jfc-header { display:flex; align-items:center; gap:12px; padding:17px 18px 15px; border-bottom:1px solid rgba(255,255,255,.08); }
+    #jf-chat .jfc-brand { display:grid; place-items:center; width:38px; height:38px; border-radius:10px; color:#fff; background:linear-gradient(135deg,#00a4dc,#7257c4); }
+    #jf-chat .jfc-brand svg { width:20px; height:20px; }
+    #jf-chat .jfc-heading { flex:1; min-width:0; }
+    #jf-chat .jfc-heading strong { display:block; font-size:17px; font-weight:600; line-height:1.3; }
+    #jf-chat .jfc-heading small { display:block; margin-top:2px; color:var(--jfc-muted); font-size:12px; }
+    #jf-chat .jfc-icon-button { display:grid; place-items:center; width:36px; height:36px; padding:7px; color:#d7d7dc; background:transparent; border:0; border-radius:50%; }
+    #jf-chat .jfc-icon-button:hover { background:rgba(255,255,255,.1); color:#fff; }
+    #jf-chat .jfc-icon-button svg { width:20px; height:20px; }
+    #jf-chat .jfc-room-bar { display:flex; align-items:center; gap:10px; padding:13px 18px; border-bottom:1px solid rgba(255,255,255,.08); }
+    #jf-chat .jfc-room-mark { display:grid; place-items:center; width:34px; height:34px; flex:none; border-radius:9px; background:#33363d; color:#aaaebb; font-size:20px; font-weight:500; }
+    #jf-chat .jfc-room-picker { flex:1; min-width:0; }
+    #jf-chat .jfc-room-picker label { display:block; color:var(--jfc-muted); font-size:11px; line-height:1; margin-bottom:3px; }
+    #jf-chat .jfc-room-picker select { width:100%; padding:0 20px 0 0; border:0; color:#f3f3f3; background:transparent; font-weight:600; cursor:pointer; }
+    #jf-chat .jfc-room-picker option { color:#eee; background:#26272b; }
+    #jf-chat .jfc-room-note { font-size:11px; color:var(--jfc-muted); white-space:nowrap; }
+    #jf-chat main { min-height:0; flex:1; overflow:auto; overscroll-behavior:contain; }
+    #jf-chat .jfc-messages { display:flex; flex-direction:column; gap:15px; padding:20px 18px; }
+    #jf-chat .jfc-empty { margin:auto; max-width:250px; text-align:center; color:var(--jfc-muted); line-height:1.5; }
+    #jf-chat .jfc-empty strong { display:block; color:#eee; font-size:15px; margin-bottom:5px; }
+    #jf-chat .jfc-message { display:flex; align-items:flex-start; gap:9px; max-width:90%; }
+    #jf-chat .jfc-message.jfc-own { align-self:flex-end; flex-direction:row-reverse; }
+    #jf-chat .jfc-avatar { display:grid; place-items:center; flex:none; width:30px; height:30px; border-radius:50%; background:#434653; color:#eee; font-size:12px; font-weight:700; text-transform:uppercase; }
+    #jf-chat .jfc-own .jfc-avatar { background:#126180; }
+    #jf-chat .jfc-message-content { min-width:0; }
+    #jf-chat .jfc-message-meta { display:flex; align-items:baseline; flex-wrap:wrap; gap:7px; margin:1px 2px 5px; }
+    #jf-chat .jfc-own .jfc-message-meta { justify-content:flex-end; }
+    #jf-chat .jfc-message-meta strong { font-size:12px; font-weight:600; color:#ddd; }
+    #jf-chat .jfc-message-meta time { color:var(--jfc-muted); font-size:11px; }
+    #jf-chat .jfc-bubble { padding:9px 12px; border-radius:4px 12px 12px 12px; background:#34363b; line-height:1.45; white-space:pre-wrap; overflow-wrap:anywhere; }
+    #jf-chat .jfc-own .jfc-bubble { border-radius:12px 4px 12px 12px; background:#075b7a; }
+    #jf-chat .jfc-footer { padding:13px 18px 16px; border-top:1px solid rgba(255,255,255,.08); }
+    #jf-chat .jfc-compose { display:flex; align-items:center; gap:8px; padding:5px 5px 5px 12px; border:1px solid #555961; border-radius:9px; background:#292b30; }
+    #jf-chat .jfc-compose:focus-within { border-color:var(--jfc-accent); }
+    #jf-chat .jfc-compose input { flex:1; min-width:0; padding:7px 0; color:#fff; border:0; background:transparent; outline:none; }
+    #jf-chat .jfc-compose input::placeholder { color:#a3a3ad; }
+    #jf-chat .jfc-send { display:grid; place-items:center; width:36px; height:36px; border:0; border-radius:7px; color:white; background:#007da8; }
+    #jf-chat .jfc-send:hover:not(:disabled) { background:#00a4dc; }
+    #jf-chat .jfc-readonly { color:var(--jfc-muted); font-size:13px; line-height:1.5; }
+    #jf-chat .jfc-error { padding:9px 18px; color:#ffc3bc; background:#542d31; font-size:12px; line-height:1.4; }
+    #jf-chat .jfc-error:empty { display:none; }
+    #jf-chat .jfc-settings { padding:20px 18px 24px; }
+    #jf-chat .jfc-section { margin-bottom:22px; }
+    #jf-chat .jfc-section h3 { margin:0 0 5px; font-size:15px; font-weight:600; }
+    #jf-chat .jfc-hint { margin:0 0 12px; color:var(--jfc-muted); font-size:12px; line-height:1.5; }
+    #jf-chat .jfc-check { display:flex; align-items:flex-start; gap:9px; margin:9px 0; line-height:1.4; cursor:pointer; }
+    #jf-chat .jfc-check input { margin:2px 0 0; accent-color:var(--jfc-accent); }
+    #jf-chat fieldset { margin:12px 0; padding:8px 12px; border:1px solid #4c4e56; border-radius:8px; }
+    #jf-chat fieldset:disabled { opacity:.55; }
+    #jf-chat legend { padding:0 5px; color:var(--jfc-muted); font-size:12px; }
+    #jf-chat .jfc-field { width:100%; padding:10px 12px; border:1px solid #555961; border-radius:7px; color:#fff; background:#292b30; }
+    #jf-chat .jfc-action { padding:9px 14px; border:0; border-radius:6px; background:#007fa9; color:white; font-weight:600; }
+    #jf-chat .jfc-action:hover { background:#00a4dc; }
+    #jf-chat .jfc-room-list { border-top:1px solid rgba(255,255,255,.08); }
+    #jf-chat .jfc-room-item { display:flex; align-items:center; gap:10px; padding:11px 0; border-bottom:1px solid rgba(255,255,255,.08); }
+    #jf-chat .jfc-room-item span { flex:1; min-width:0; overflow-wrap:anywhere; }
+    #jf-chat .jfc-delete { border:0; background:transparent; color:#e7a29a; padding:7px; border-radius:6px; font-size:12px; }
+    #jf-chat .jfc-delete:hover { background:rgba(255,255,255,.08); }
+    @media (max-width:500px) { #jf-chat { top:auto; right:0; bottom:0; width:100%; height:min(78dvh, 680px); border-radius:14px 14px 0 0; } }
+  `;
   document.head.appendChild(style);
-  const button = document.createElement('button'); button.id = 'jf-chat-button'; button.title = 'Chat'; button.setAttribute('aria-label', 'Chat openen'); button.textContent = '💬'; button.hidden = true;
-  const panel = document.createElement('section'); panel.id = 'jf-chat'; panel.hidden = true; panel.setAttribute('aria-label', 'Chat');
+
+  const paths = {
+    chat: 'M21 6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12l4-4h12a2 2 0 0 0 2-2V6zm-4 5H7V9h10v2z',
+    close: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
+    settings: 'M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96a7.3 7.3 0 0 0-1.63-.94l-.36-2.54a.49.49 0 0 0-.49-.42h-3.84a.49.49 0 0 0-.49.42l-.36 2.54c-.59.23-1.14.55-1.63.94l-2.39-.96a.49.49 0 0 0-.61.22L2.64 8.84a.49.49 0 0 0 .12.64L4.79 11c-.05.33-.08.66-.08 1s.03.67.08 1l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.31.61.22l2.39-.96c.49.39 1.04.71 1.63.94l.36 2.54c.04.24.24.42.49.42h3.84c.25 0 .45-.18.49-.42l.36-2.54c.59-.23 1.14-.55 1.63-.94l2.39.96c.22.09.48 0 .61-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.02-1.62zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z',
+    back: 'M20 12H4m0 0 7-7m-7 7 7 7',
+    send: 'M2 21 23 12 2 3v7l15 2-15 2z'
+  };
+  function icon(name) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', paths[name]);
+    if (name === 'back') { path.setAttribute('fill', 'none'); path.setAttribute('stroke', 'currentColor'); path.setAttribute('stroke-width', '2'); }
+    svg.append(path); return svg;
+  }
+  const el = (tag, text, className) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (className) node.className = className; return node; };
+  const button = el('button'); button.id = 'jf-chat-button'; button.type = 'button'; button.title = 'Chat'; button.setAttribute('aria-label', 'Chat openen'); button.setAttribute('aria-expanded', 'false'); button.setAttribute('aria-controls', 'jf-chat'); button.append(icon('chat')); button.hidden = true;
+  const panel = el('section'); panel.id = 'jf-chat'; panel.hidden = true; panel.setAttribute('role', 'region'); panel.setAttribute('aria-label', 'Chat');
   document.body.append(button, panel);
-  let me, rooms = [], selected = '', settingsOpen = false, busy = false;
-  const el = (tag, text) => { const node = document.createElement(tag); if (text != null) node.textContent = text; return node; };
+  let me, rooms = [], selected = '', settingsOpen = false, busy = false, lastMessages = '', firstLoad = true;
+
+  // Jellyfin 12.4 has both a classic header and a React/MUI toolbar. Reattach after SPA navigation.
+  function placeButton() {
+    const legacy = document.querySelector('.skinHeader:not(.osdHeader) .headerRight');
+    const userButton = document.querySelector('.MuiAppBar-root .MuiToolbar-root button[aria-haspopup="true"][aria-controls]');
+    const toolbar = userButton?.closest('.MuiToolbar-root');
+    const modern = userButton?.parentElement?.previousElementSibling;
+    const target = (toolbar && modern?.parentElement === toolbar ? modern : null) || (legacy && !legacy.closest('.hide, [hidden], [aria-hidden="true"]') ? legacy : null);
+    button.classList.toggle('jfc-fallback', !target);
+    if (target && button.parentElement !== target) {
+      const user = target.querySelector('.headerUserButton');
+      target.insertBefore(button, user || null);
+    } else if (!target && button.parentElement !== document.body) document.body.append(button);
+  }
+  let placementQueued = false;
+  new MutationObserver(() => {
+    if (placementQueued) return;
+    placementQueued = true;
+    requestAnimationFrame(() => { placementQueued = false; placeButton(); });
+  }).observe(document.body, { childList: true, subtree: true });
+  placeButton();
+
   function client() { return window.ApiClient; }
   async function api(path, method = 'GET', body) {
     const c = client(); if (!c || !c.accessToken()) throw new Error('Niet aangemeld');
@@ -17,52 +126,74 @@
     if (!response.ok) throw new Error('Chatverzoek mislukt (' + response.status + ')');
     const content = await response.text(); return content ? JSON.parse(content) : null;
   }
-  function error(err) { const e = panel.querySelector('.error'); if (e) e.textContent = err.message; }
+  function error(err) { const e = panel.querySelector('.jfc-error'); if (e) e.textContent = err.message || 'Er is iets misgegaan.'; }
+  function closePanel() { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); button.focus(); }
+  function actionIcon(name, label, handler) {
+    const b = el('button', null, 'jfc-icon-button'); b.type = 'button'; b.title = label; b.setAttribute('aria-label', label); b.append(icon(name)); b.onclick = handler; return b;
+  }
   async function refreshRooms() { rooms = await api('rooms'); if (!rooms.some(r => r.id === selected)) selected = rooms[0]?.id || ''; }
   async function render() {
     panel.replaceChildren();
-    const header = el('header'), title = el('strong', 'Chat'); header.append(title);
-    if (me.admin) { const config = el('button', settingsOpen ? 'Terug' : 'Beheer'); config.onclick = async () => { settingsOpen = !settingsOpen; try { await render(); } catch(e) { error(e); } }; header.append(config); }
-    const close = el('button', '✕'); close.setAttribute('aria-label', 'Sluiten'); close.onclick = () => panel.hidden = true; header.append(close); panel.append(header);
-    const main = el('main'); panel.append(main); const err = el('div'); err.className = 'error'; header.append(err);
-    if (settingsOpen) { await renderSettings(main); return; }
+    const header = el('header', null, 'jfc-header');
+    const brand = el('div', null, 'jfc-brand'); brand.append(icon('chat')); brand.setAttribute('aria-hidden', 'true');
+    const heading = el('div', null, 'jfc-heading'); heading.append(el('strong', settingsOpen ? 'Chat beheren' : 'Chat'), el('small', settingsOpen ? 'Instellingen en groepen' : 'Samen praten op Jellyfin'));
+    header.append(brand, heading);
+    if (me.admin) header.append(actionIcon(settingsOpen ? 'back' : 'settings', settingsOpen ? 'Terug naar chat' : 'Chat beheren', async () => { settingsOpen = !settingsOpen; firstLoad = true; try { await render(); } catch (e) { error(e); } }));
+    header.append(actionIcon('close', 'Chat sluiten', closePanel)); panel.append(header);
+    const err = el('div', null, 'jfc-error'); err.setAttribute('role', 'alert'); panel.append(err);
+    if (settingsOpen) { const main = el('main', null, 'jfc-settings'); panel.append(main); await renderSettings(main); return; }
     await refreshRooms();
-    if (!rooms.length) { main.textContent = 'Er zijn nog geen groepen. Vraag een beheerder om er een te maken.'; return; }
-    const select = el('select'); select.setAttribute('aria-label', 'Groep'); rooms.forEach(r => { const o = el('option', r.name + (r.adminOnly ? ' 📢' : '')); o.value = r.id; select.append(o); }); select.value = selected;
-    select.onchange = async () => { selected = select.value; try { await render(); } catch(e) { error(e); } }; header.insertBefore(select, close);
-    main.id = 'jf-chat-messages'; await loadMessages();
+    if (!rooms.length) { const main = el('main', null, 'jfc-messages'); const empty = el('div', null, 'jfc-empty'); empty.append(el('strong', 'Nog geen groepen'), el('span', 'Een beheerder kan een groep aanmaken om te beginnen.')); main.append(empty); panel.append(main); return; }
     const room = rooms.find(r => r.id === selected);
-    const footer = el('footer');
-    if (room.adminOnly && !me.admin) footer.append(el('small', 'Alleen beheerders kunnen hier berichten sturen.'));
+    const bar = el('div', null, 'jfc-room-bar'), mark = el('span', '#', 'jfc-room-mark'), picker = el('div', null, 'jfc-room-picker');
+    mark.setAttribute('aria-hidden', 'true'); const label = el('label', 'Groep'); label.htmlFor = 'jfc-room-select';
+    const select = el('select'); select.id = 'jfc-room-select'; rooms.forEach(r => { const o = el('option', r.name + (r.adminOnly ? ' · Aankondigingen' : '')); o.value = r.id; select.append(o); }); select.value = selected;
+    select.onchange = async () => { selected = select.value; firstLoad = true; lastMessages = ''; try { await render(); } catch (e) { error(e); } };
+    picker.append(label, select); bar.append(mark, picker); if (room.adminOnly) bar.append(el('span', 'Aankondigingen', 'jfc-room-note')); panel.append(bar);
+    const main = el('main', null, 'jfc-messages'); main.id = 'jf-chat-messages'; main.setAttribute('aria-label', 'Berichten'); panel.append(main);
+    const footer = el('footer', null, 'jfc-footer');
+    if (room.adminOnly && !me.admin) footer.append(el('div', 'Alleen beheerders kunnen hier berichten sturen.', 'jfc-readonly'));
     else {
-      const input = el('input'); input.type = 'text'; input.placeholder = 'Schrijf een bericht'; input.maxLength = 2000; input.setAttribute('aria-label', 'Bericht');
-      const send = el('button', 'Verstuur');
-      const submit = async () => { const text = input.value.trim(); if (!text || busy) return; busy = true; send.disabled = true; try { await api('rooms/' + selected + '/messages', 'POST', { text }); input.value = ''; await loadMessages(); } catch(e) { error(e); } finally { busy = false; send.disabled = false; } };
-      input.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } }; send.onclick = submit; footer.append(input, send);
+      const form = el('form', null, 'jfc-compose'); const input = el('input'); input.type = 'text'; input.placeholder = 'Schrijf een bericht...'; input.maxLength = 2000; input.autocomplete = 'off'; input.setAttribute('aria-label', 'Bericht');
+      const send = el('button', null, 'jfc-send'); send.type = 'submit'; send.title = 'Bericht versturen'; send.setAttribute('aria-label', 'Bericht versturen'); send.append(icon('send')); form.append(input, send); footer.append(form);
+      form.onsubmit = async event => { event.preventDefault(); const text = input.value.trim(); if (!text || busy) return; busy = true; send.disabled = true; const roomId = selected; try { await api('rooms/' + roomId + '/messages', 'POST', { text }); input.value = ''; if (selected === roomId) { firstLoad = true; await loadMessages(); } } catch(e) { error(e); } finally { busy = false; send.disabled = false; } };
     }
-    panel.append(footer);
+    panel.append(footer); await loadMessages();
   }
+  const normalizeId = id => String(id || '').replace(/-/g, '').toLowerCase();
   async function loadMessages() {
     const target = panel.querySelector('#jf-chat-messages'); if (!target || !selected) return;
     const id = selected, messages = await api('rooms/' + id + '/messages'); if (selected !== id || !target.isConnected) return;
-    const atBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 80; target.replaceChildren();
-    messages.forEach(m => { const item = el('div'); item.className = 'msg'; item.append(el('strong', m.userName), el('small', ' · ' + new Date(m.time).toLocaleString()), el('div', m.text)); target.append(item); });
+    const fingerprint = JSON.stringify(messages); if (!firstLoad && fingerprint === lastMessages) return;
+    const atBottom = firstLoad || target.scrollHeight - target.scrollTop - target.clientHeight < 80; firstLoad = false; lastMessages = fingerprint; target.replaceChildren();
+    if (!messages.length) { const empty = el('div', null, 'jfc-empty'); empty.append(el('strong', 'Begin het gesprek'), el('span', 'Er zijn nog geen berichten in deze groep.')); target.append(empty); }
+    messages.forEach(m => {
+      const own = normalizeId(m.userId) === normalizeId(me?.userId);
+      const item = el('div', null, 'jfc-message' + (own ? ' jfc-own' : '')); const avatar = el('div', (m.userName || '?').trim().charAt(0) || '?', 'jfc-avatar'); avatar.setAttribute('aria-hidden', 'true');
+      const content = el('div', null, 'jfc-message-content'), meta = el('div', null, 'jfc-message-meta'); const time = el('time', new Date(m.time).toLocaleString([], { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' })); time.dateTime = m.time;
+      meta.append(el('strong', own ? 'Jij' : m.userName), time); content.append(meta, el('div', m.text, 'jfc-bubble')); item.append(avatar, content); target.append(item);
+    });
     if (atBottom) target.scrollTop = target.scrollHeight;
   }
-  function checkbox(label, checked, parent) { const l = el('label'), i = el('input'); i.type = 'checkbox'; i.checked = checked; l.append(i, document.createTextNode(' ' + label)); parent.append(l); return i; }
+  function checkbox(label, checked, parent) { const l = el('label', null, 'jfc-check'), i = el('input'); i.type = 'checkbox'; i.checked = checked; l.append(i, el('span', label)); parent.append(l); return i; }
+  function section(main, title, description) { const node = el('section', null, 'jfc-section'); node.append(el('h3', title), el('p', description, 'jfc-hint')); main.append(node); return node; }
   async function renderSettings(main) {
-    main.className = 'settings'; const data = await api('settings');
-    main.append(el('h3', 'Wie mag chatten?'));
-    const everyone = checkbox('Iedereen', data.everyone, main);
-    const list = el('fieldset'); list.append(el('legend', 'Toegestane gebruikers als niet iedereen toegang heeft')); const allowed = data.users.map(u => [u.id, checkbox(u.name, data.allowedUsers.includes(u.id), list)]); main.append(list);
-    const save = el('button', 'Toegang opslaan'); save.onclick = async () => { try { await api('settings', 'PUT', { everyone: everyone.checked, allowedUsers: allowed.filter(x => x[1].checked).map(x => x[0]) }); save.textContent = 'Opgeslagen'; } catch(e) { error(e); } }; main.append(save);
-    main.append(el('h3', 'Nieuwe groep')); const name = el('input'); name.type = 'text'; name.placeholder = 'Groepsnaam'; name.maxLength = 80; main.append(name);
-    const adminOnly = checkbox('Alleen beheerders mogen berichten sturen', false, main);
-    const members = el('fieldset'); members.append(el('legend', 'Leden (niets selecteren = iedereen met toegang)')); const choices = data.users.map(u => [u.id, checkbox(u.name, false, members)]); main.append(members);
-    const create = el('button', 'Groep maken'); create.onclick = async () => { try { await api('rooms', 'POST', { name: name.value, adminOnly: adminOnly.checked, members: choices.filter(x => x[1].checked).map(x => x[0]) }); await render(); } catch(e) { error(e); } }; main.append(create);
-    main.append(el('h3', 'Groepen')); data.rooms.forEach(r => { const row = el('p'); row.append(document.createTextNode(r.name + ' ')); const del = el('button', 'Verwijderen'); del.onclick = async () => { if (!confirm('Groep en alle berichten definitief verwijderen?')) return; try { await api('rooms/' + r.id, 'DELETE'); await render(); } catch(e) { error(e); } }; row.append(del); main.append(row); });
+    const data = await api('settings');
+    const access = section(main, 'Chattoegang', 'Bepaal wie berichten en groepen kan bekijken. Beheerders hebben altijd toegang.');
+    const everyone = checkbox('Iedereen heeft toegang', data.everyone, access);
+    const list = el('fieldset'); list.append(el('legend', 'Of kies gebruikers')); const allowed = data.users.map(u => [u.id, checkbox(u.name, data.allowedUsers.includes(u.id), list)]); access.append(list); list.disabled = everyone.checked; everyone.onchange = () => { list.disabled = everyone.checked; };
+    const save = el('button', 'Toegang opslaan', 'jfc-action'); save.type = 'button'; save.onclick = async () => { save.disabled = true; try { await api('settings', 'PUT', { everyone: everyone.checked, allowedUsers: allowed.filter(x => x[1].checked).map(x => x[0]) }); save.textContent = 'Opgeslagen'; } catch(e) { error(e); } finally { save.disabled = false; } }; access.append(save);
+    const createSection = section(main, 'Nieuwe groep', 'Maak een groep voor iedereen of kies specifieke leden.');
+    const name = el('input', null, 'jfc-field'); name.type = 'text'; name.placeholder = 'Naam van de groep'; name.setAttribute('aria-label', 'Groepsnaam'); name.maxLength = 80; createSection.append(name);
+    const adminOnly = checkbox('Alleen beheerders mogen berichten sturen', false, createSection);
+    const members = el('fieldset'); members.append(el('legend', 'Leden · niets selecteren = iedereen')); const choices = data.users.map(u => [u.id, checkbox(u.name, false, members)]); createSection.append(members);
+    const create = el('button', 'Groep maken', 'jfc-action'); create.type = 'button'; create.onclick = async () => { if (!name.value.trim()) { name.focus(); error(new Error('Vul een groepsnaam in.')); return; } create.disabled = true; try { await api('rooms', 'POST', { name: name.value, adminOnly: adminOnly.checked, members: choices.filter(x => x[1].checked).map(x => x[0]) }); await render(); } catch(e) { error(e); create.disabled = false; } }; createSection.append(create);
+    const groupSection = section(main, 'Groepen', 'Verwijderen wist ook alle berichten in de groep.'); const groups = el('div', null, 'jfc-room-list'); groupSection.append(groups);
+    if (!data.rooms.length) groups.append(el('p', 'Nog geen groepen.', 'jfc-hint'));
+    data.rooms.forEach(r => { const row = el('div', null, 'jfc-room-item'); row.append(el('span', r.name + (r.adminOnly ? ' · Aankondigingen' : ''))); const del = el('button', 'Verwijderen', 'jfc-delete'); del.type = 'button'; del.setAttribute('aria-label', r.name + ' verwijderen'); del.onclick = async () => { if (!confirm('Groep en alle berichten definitief verwijderen?')) return; del.disabled = true; try { await api('rooms/' + r.id, 'DELETE'); await render(); } catch(e) { error(e); del.disabled = false; } }; row.append(del); groups.append(row); });
   }
-  button.onclick = async () => { panel.hidden = !panel.hidden; if (!panel.hidden) { settingsOpen = false; try { await render(); } catch(e) { error(e); } } };
-  async function check() { try { me = await api('me'); button.hidden = !me.enabled; if (!me.enabled) panel.hidden = true; } catch { button.hidden = true; panel.hidden = true; me = null; } }
+  button.onclick = async () => { if (!panel.hidden) { closePanel(); return; } panel.hidden = false; button.setAttribute('aria-expanded', 'true'); settingsOpen = false; firstLoad = true; try { await render(); } catch(e) { error(e); } };
+  panel.addEventListener('keydown', event => { if (event.key === 'Escape') closePanel(); });
+  async function check() { try { const current = await api('me'); if (me && normalizeId(me.userId) !== normalizeId(current.userId)) { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); selected = ''; lastMessages = ''; } me = current; button.hidden = !me.enabled; if (!me.enabled) { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); } } catch { button.hidden = true; panel.hidden = true; button.setAttribute('aria-expanded', 'false'); me = null; } }
   check(); setInterval(check, 10000); setInterval(() => { if (!panel.hidden && !settingsOpen) loadMessages().catch(error); }, 4000);
 })();
