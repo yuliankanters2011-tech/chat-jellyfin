@@ -26,13 +26,19 @@ docker run -d --name "$name" -p 127.0.0.1:18096:8096 \
   -v "$work/config:/config" -v "$work/cache:/cache" jellyfin/jellyfin:12.4 >/dev/null
 url=http://127.0.0.1:18096
 stage="wachten op Jellyfin"
-for _ in $(seq 1 90); do
-  if curl -fsS "$url/System/Info/Public" > /dev/null 2>&1; then break; fi
+ready=false
+for _ in $(seq 1 120); do
+  # Jellyfin briefly starts a setup server during migrations. Wait for the
+  # actual media server instead of treating the first HTTP 200 as readiness.
+  if curl --max-time 2 -fsS "$url/System/Info/Public" > "$work/system.json" 2>/dev/null &&
+      jq -e '(.Version // .version // "") | startswith("12.4")' "$work/system.json" >/dev/null 2>&1; then
+    ready=true
+    break
+  fi
   sleep 2
 done
-curl -fsS "$url/System/Info/Public" > "$work/system.json"
-if ! jq -e '(.Version // .version // "") | startswith("12.4")' "$work/system.json" >/dev/null; then
-  echo "::error::Onverwachte systeeminformatie: $(tr -d '\r\n' < "$work/system.json")"
+if [[ "$ready" != true ]]; then
+  echo "::error::Jellyfin 12.4 werd niet klaar: $(tr -d '\r\n' < "$work/system.json")"
   exit 1
 fi
 stage="Jellyfin Web HTML ophalen en chat-script controleren"
