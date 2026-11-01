@@ -8,12 +8,12 @@
     "category": "General",
     "versions": [
       {
-        "version": "1.0.0.33",
+        "version": "1.0.0.37",
         "changelog": "Chatplugin voor Jellyfin 12.4. Het chat-icoon wordt automatisch toegevoegd aan de door Jellyfin gehoste webclient.",
         "targetAbi": "12.4.0.0",
-        "sourceUrl": "https://github.com/yuliankanters2011-tech/chat-jellyfin/releases/download/chat-v1.0.0.33/Chat_1.0.0.33.zip",
-        "checksum": "5e894682a37ac2af4e4fe9cd5fef8b43",
-        "timestamp": "2026-11-01T17:36:49Z"
+        "sourceUrl": "https://github.com/yuliankanters2011-tech/chat-jellyfin/releases/download/chat-v1.0.0.37/Chat_1.0.0.37.zip",
+        "checksum": "d51888c6ea841c6cf56259e951160e09",
+        "timestamp": "2026-11-01T19:15:55Z"
       }
     ]
   }
