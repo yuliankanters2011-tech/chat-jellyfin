@@ -26,7 +26,7 @@ Na samenvoegen naar `main` is ook deze raw-link beschikbaar:
 https://raw.githubusercontent.com/yuliankanters2011-tech/chat-jellyfin/main/repository/manifest.json
 ```
 
-**Let op:** dit bestand is een momentopname van release 1.0.0.33 en wordt niet automatisch bijgewerkt. Gebruik bij voorkeur de `releases/latest`-link hierboven voor automatische updates. Om de raw-link bij te werken moet een beheerder na iedere publicatie het bijbehorende `manifest.json` uit de release naar `repository/manifest.json` kopiëren en die wijziging samenvoegen. Anders mist de raw-link nieuwe versies, inclusief eventuele oplossingen voor het chat-icoon.
+**Let op:** dit bestand is een momentopname van de laatst handmatig bijgewerkte release en wordt niet automatisch bijgewerkt. Gebruik bij voorkeur de `releases/latest`-link hierboven voor automatische updates. Om de raw-link bij te werken moet een beheerder na iedere publicatie het bijbehorende `manifest.json` uit de release naar `repository/manifest.json` kopiëren en die wijziging samenvoegen. Anders mist de raw-link nieuwe versies, inclusief eventuele oplossingen voor het chat-icoon.
 
 ### Releases voor beheerders van deze repository
 
