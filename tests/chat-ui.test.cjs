@@ -10,19 +10,24 @@ async function setup(header = '<div class="skinHeader"><div class="headerRight">
   const dom = new JSDOM(`<!doctype html><html><head></head><body>${header}</body></html>`, { url: 'http://jellyfin.test/web/', runScripts: 'outside-only', pretendToBeVisual: true });
   const w = dom.window;
   const calls = [], intervals = [], observers = [];
+  // jsdom does not lay out elements; model an attached, visible header.
+  w.HTMLElement.prototype.getClientRects = function () { return this.isConnected ? [{ width: 100, height: 48 }] : []; };
+  w.HTMLElement.prototype.getBoundingClientRect = function () { return { top: 0, bottom: 48, left: 0, right: 100, width: 100, height: 48 }; };
   const NativeObserver = w.MutationObserver;
   w.MutationObserver = class extends NativeObserver { constructor(callback) { super(callback); observers.push(this); } };
   const cleanup = () => { observers.forEach(observer => observer.disconnect()); dom.window.close(); };
+  let failure = null, token = 'token';
   let admin = true, enabled = true, userId = 'abcdefab-cdef-abcd-efab-cdefabcdefab';
   let rooms = [{ id: 'room1', name: 'Algemeen', adminOnly: false, members: [] }];
   let unread = { total: 0, rooms: {} };
   let messages = [{ id: 'message1', userId: 'abcdefabcdefabcdefabcdefabcdefab', userName: 'Tester', text: '<img src=x onerror=alert(1)>', time: '2026-01-01T12:00:00Z' }];
-  w.ApiClient = { accessToken: () => 'token', getUrl: p => '/' + p };
+  w.ApiClient = { accessToken: () => token, getUrl: p => '/' + p };
   w.setInterval = fn => { intervals.push(fn); return intervals.length; };
   w.confirm = () => true;
   w.fetch = async (url, options) => {
     calls.push({ url, ...options });
     const path = url.replace('/ChatPlugin/', '');
+    if (failure && path === 'me') { if (typeof failure === 'function') return failure(); if (failure === 'network') throw new Error('offline'); return { ok: false, status: failure, text: async () => '' }; }
     let data = null;
     if (path === 'me') data = { enabled, admin, userId };
     else if (path === 'rooms' && options.method === 'GET') data = rooms;
@@ -38,7 +43,7 @@ async function setup(header = '<div class="skinHeader"><div class="headerRight">
     return { ok: true, text: async () => data === null ? '' : JSON.stringify(data) };
   };
   w.eval(script); await wait();
-  return { dom, w, calls, intervals, cleanup, setAdmin: value => { admin = value; }, setEnabled: value => { enabled = value; }, setUser: value => { userId = value; }, setRooms: value => { rooms = value; }, setUnread: value => { unread = value; }, setMessages: value => { messages = value; } };
+  return { dom, w, calls, intervals, cleanup, setAdmin: value => { admin = value; }, setEnabled: value => { enabled = value; }, setUser: value => { userId = value; }, setRooms: value => { rooms = value; }, setUnread: value => { unread = value; }, setMessages: value => { messages = value; }, setFailure: value => { failure = value; }, setToken: value => { token = value; } };
 }
 
 test('classic header, safe messages, sending and settings work', async t => {
@@ -192,4 +197,58 @@ test('messages in the currently open room do not trigger a popup', async t => {
   const doc = w.document; doc.querySelector('#jf-chat-button').click(); await wait();
   setUnread({ total: 1, rooms: { room1: 1 }, latest: { room1: 'new-message' } }); await intervals[0]();
   assert.equal(doc.querySelector('#jfc-notice').hidden, true);
+});
+
+
+test('hidden header moves chat to visible fallback and restores it when the header returns', async t => {
+  const { w, cleanup } = await setup(); t.after(cleanup);
+  const doc = w.document, header = doc.querySelector('.skinHeader'), button = doc.querySelector('#jf-chat-button');
+  assert.equal(button.parentElement.className, 'headerRight');
+  header.style.display = 'none'; await wait();
+  assert.equal(button.parentElement, doc.body);
+  assert.ok(button.classList.contains('jfc-fallback'));
+  header.style.display = ''; await wait();
+  assert.equal(button.parentElement.className, 'headerRight');
+  assert.equal(button.classList.contains('jfc-fallback'), false);
+});
+
+test('temporary server and network failures do not hide an authorized chat button', async t => {
+  const { w, intervals, setFailure, cleanup } = await setup(); t.after(cleanup);
+  const button = w.document.querySelector('#jf-chat-button');
+  setFailure(500); await intervals[0](); assert.equal(button.hidden, false);
+  setFailure('network'); await intervals[0](); assert.equal(button.hidden, false);
+  setFailure(401); await intervals[0](); assert.equal(button.hidden, true);
+  setFailure(null); await intervals[0](); assert.equal(button.hidden, false);
+});
+
+test('a changed or missing session cannot expose a previous user chat after a failed check', async t => {
+  const { w, intervals, setFailure, setToken, cleanup } = await setup(); t.after(cleanup);
+  const doc = w.document; doc.querySelector('#jf-chat-button').click(); await wait();
+  setToken('different-token'); setFailure('network'); await intervals[0]();
+  assert.equal(doc.querySelector('#jf-chat-button').hidden, true);
+  assert.equal(doc.querySelector('#jf-chat').hidden, true);
+  setFailure(null); await intervals[0](); assert.equal(doc.querySelector('#jf-chat-button').hidden, false);
+  setToken(null); await intervals[0](); assert.equal(doc.querySelector('#jf-chat-button').hidden, true);
+});
+
+
+test('off-screen toolbar moves the button to a visible fallback', async t => {
+  const { w, cleanup } = await setup(); t.after(cleanup);
+  const doc = w.document, header = doc.querySelector('.skinHeader'), button = doc.querySelector('#jf-chat-button');
+  header.getBoundingClientRect = () => ({ top: -100, bottom: -52, left: 0, right: 100 });
+  header.classList.add('scrolled-away'); await wait();
+  assert.equal(button.parentElement, doc.body);
+  assert.equal(button.classList.contains('jfc-fallback'), true);
+  delete header.getBoundingClientRect; header.classList.remove('scrolled-away'); await wait();
+  assert.equal(button.parentElement.className, 'headerRight');
+});
+
+test('an outdated authentication error cannot hide a newer successful session check', async t => {
+  const { w, intervals, setFailure, cleanup } = await setup(); t.after(cleanup);
+  let complete;
+  setFailure(() => new Promise(resolve => { complete = resolve; }));
+  const old = intervals[0]();
+  setFailure(null); await intervals[0]();
+  complete({ ok: false, status: 401, text: async () => '' }); await old;
+  assert.equal(w.document.querySelector('#jf-chat-button').hidden, false);
 });
