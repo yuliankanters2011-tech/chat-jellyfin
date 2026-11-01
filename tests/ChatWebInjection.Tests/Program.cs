@@ -8,10 +8,11 @@ static void Check(bool condition, string message)
 }
 
 static async Task<(DefaultHttpContext Context, string Body)> Run(
-    string path, string baseUrl, string html, int status = 200, string type = "text/html", string method = "GET", bool conditional = false)
+    string path, string baseUrl, string html, int status = 200, string type = "text/html", string method = "GET", bool conditional = false, string pathBase = "")
 {
     var context = new DefaultHttpContext();
     context.Request.Path = path;
+    context.Request.PathBase = pathBase;
     context.Request.Method = method;
     context.Response.Body = new MemoryStream();
     if (conditional)
@@ -43,6 +44,13 @@ Check(root.Response.Headers.CacheControl.ToString().Contains("no-store"), "Modif
 Check(root.Request.Headers.IfNoneMatch == "\"old\"", "Request headers must be restored");
 var (_, based) = await Run("/jellyfin/web/index.html", "/jellyfin", "<body>x</BODY>");
 Check(based.Contains("ChatPlugin/chat.js"), "Base URL must be supported");
+var (_, basedPath) = await Run("/web/index.html", "/jellyfin", "<body>x</body>", pathBase: "/jellyfin");
+Check(basedPath.Contains("../ChatPlugin/chat.js"), "PathBase-rewritten URL must be supported");
+var (_, shortWeb) = await Run("/web", "/jellyfin", "<body>x</body>", pathBase: "/jellyfin");
+Check(shortWeb.Contains("web/../ChatPlugin/chat.js"), "Web page without trailing slash must use the correct script URL");
+Check(new Uri(new Uri("https://example.test/jellyfin/web"), "web/../ChatPlugin/chat.js").AbsolutePath == "/jellyfin/ChatPlugin/chat.js", "Slashless web script must resolve inside the configured base URL");
+var (_, wrongBase) = await Run("/web/index.html", "/jellyfin", "<body>x</body>", pathBase: "/other");
+Check(!wrongBase.Contains("ChatPlugin/chat.js"), "Unrelated PathBase must not be modified");
 var original = "<body><script defer src=\"../ChatPlugin/chat.js\"></script></body>";
 var (_, existing) = await Run("/web/index.html", "", original);
 Check(existing == original, "Existing script must not be duplicated");
