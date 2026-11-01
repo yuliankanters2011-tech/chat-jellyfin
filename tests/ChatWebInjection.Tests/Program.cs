@@ -63,3 +63,12 @@ Check(roomDoc.RootElement.GetProperty("adminOnly").GetBoolean(), "Room permissio
 var messageJson = System.Text.Json.JsonSerializer.Serialize(new Message { Text = "test", UserName = "admin" });
 using var messageDoc = System.Text.Json.JsonDocument.Parse(messageJson);
 Check(messageDoc.RootElement.GetProperty("userName").GetString() == "admin", "Message API names must match the client");
+
+// Check the actual release DLL, not just the separately built test project.
+var expectedChatVersion = Environment.GetEnvironmentVariable("EXPECTED_CHAT_VERSION");
+if (!string.IsNullOrEmpty(expectedChatVersion))
+{
+    var publishedVersion = System.Reflection.AssemblyName.GetAssemblyName("publish/Jellyfin.Plugin.Chat.dll").Version?.ToString();
+    Check(publishedVersion == expectedChatVersion, $"Published assembly reports {publishedVersion}, expected {expectedChatVersion}");
+    Console.WriteLine($"Published assembly version: {publishedVersion}");
+}
