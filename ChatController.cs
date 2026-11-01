@@ -57,15 +57,21 @@ public class ChatController : ControllerBase
         return Store.Read<IActionResult>(s => {
             if (!Enabled(s, u)) return Forbid();
             var counts = new Dictionary<string, int>();
+            var latest = new Dictionary<string, string>();
             s.ReadMarks.TryGetValue(u.Id, out var marks);
             foreach (var room in s.Rooms.Where(r => Visible(r, u)))
             {
                 var all = s.Messages.Where(m => m.RoomId == room.Id).ToList();
                 var index = marks != null && marks.TryGetValue(room.Id, out var last) ? all.FindIndex(m => m.Id == last) : -1;
-                var count = all.Skip(index + 1).Count(m => m.UserId != u.Id && CanSeeMessage(m, u));
-                if (count > 0) counts[room.Id.ToString("N")] = count;
+                var pending = all.Skip(index + 1).Where(m => m.UserId != u.Id && CanSeeMessage(m, u)).ToList();
+                if (pending.Count > 0)
+                {
+                    var key = room.Id.ToString("N");
+                    counts[key] = pending.Count;
+                    latest[key] = pending[^1].Id.ToString("N");
+                }
             }
-            return Ok(new { total = counts.Values.Sum(), rooms = counts });
+            return Ok(new { total = counts.Values.Sum(), rooms = counts, latest });
         });
     }
     public class ReadRequest { public Guid MessageId { get; set; } }

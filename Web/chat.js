@@ -8,6 +8,16 @@
     #jf-chat-button { box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; position:relative; width:48px; height:48px; padding:12px; border:0; border-radius:50%; background:transparent; color:inherit; cursor:pointer; flex-shrink:0; }
     #jf-chat-button .jfc-badge { position:absolute; top:3px; right:2px; min-width:18px; height:18px; padding:0 4px; display:grid; place-items:center; border:2px solid #151515; border-radius:10px; background:#21a453; color:#fff; font:700 10px/1 sans-serif; }
     #jf-chat-button .jfc-badge[hidden] { display:none; }
+    #jfc-notice { position:fixed; z-index:1400; top:68px; right:18px; display:flex; align-items:center; width:min(370px, calc(100vw - 24px)); border:1px solid rgba(255,255,255,.15); border-left:4px solid #21a453; border-radius:8px; background:#27292d; color:#fff; box-shadow:0 8px 30px #0009; font:inherit; }
+    #jfc-notice[hidden] { display:none !important; }
+    #jfc-notice .jfc-notice-open { display:flex; align-items:center; gap:12px; flex:1; min-width:0; text-align:left; padding:14px; color:inherit; border:0; background:transparent; cursor:pointer; font:inherit; }
+    #jfc-notice .jfc-notice-icon { display:grid; place-items:center; width:36px; height:36px; flex:none; border-radius:50%; background:#17653b; color:#fff; }
+    #jfc-notice svg { width:20px; height:20px; fill:currentColor; }
+    #jfc-notice strong, #jfc-notice small { display:block; }
+    #jfc-notice strong { font-size:14px; } #jfc-notice small { color:#bcbec4; font-size:12px; margin-top:3px; }
+    #jfc-notice .jfc-notice-close { align-self:flex-start; border:0; background:transparent; color:#bcbec4; padding:12px; cursor:pointer; font-size:18px; }
+    #jfc-notice button:focus-visible { outline:2px solid #00a4dc; outline-offset:-3px; }
+    @media (max-width:500px) { #jfc-notice { top:60px; right:12px; } }
     #jf-chat-button:hover, #jf-chat-button[aria-expanded="true"] { background:rgba(255,255,255,.1); }
     #jf-chat-button:focus-visible, #jf-chat :focus-visible { outline:2px solid #00a4dc; outline-offset:2px; }
     #jf-chat-button[hidden], #jf-chat[hidden] { display:none !important; }
@@ -98,7 +108,13 @@
   const el = (tag, text, className) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (className) node.className = className; return node; };
   const button = el('button'); button.id = 'jf-chat-button'; button.type = 'button'; button.title = 'Chat'; button.setAttribute('aria-label', 'Chat openen'); button.setAttribute('aria-expanded', 'false'); button.setAttribute('aria-controls', 'jf-chat'); button.append(icon('chat')); const badge = el('span', null, 'jfc-badge'); badge.hidden = true; badge.setAttribute('aria-hidden', 'true'); button.append(badge); button.hidden = true;
   const panel = el('section'); panel.id = 'jf-chat'; panel.hidden = true; panel.setAttribute('role', 'region'); panel.setAttribute('aria-label', 'Chat');
-  document.body.append(button, panel);
+  const notice = el('div'); notice.id = 'jfc-notice'; notice.hidden = true; notice.setAttribute('role', 'status'); notice.setAttribute('aria-live', 'polite');
+  const noticeOpen = el('button', null, 'jfc-notice-open'); noticeOpen.type = 'button';
+  const noticeIcon = el('span', null, 'jfc-notice-icon'); noticeIcon.setAttribute('aria-hidden', 'true'); noticeIcon.append(icon('chat'));
+  const noticeText = el('span'), noticeTitle = el('strong'), noticeHint = el('small', 'Tik om de chat te openen'); noticeText.append(noticeTitle, noticeHint); noticeOpen.append(noticeIcon, noticeText);
+  const noticeClose = el('button', '×', 'jfc-notice-close'); noticeClose.type = 'button'; noticeClose.setAttribute('aria-label', 'Melding sluiten');
+  notice.append(noticeOpen, noticeClose); document.body.append(button, panel, notice);
+  let noticeTimer, noticePending = false, unreadSeen = false, unreadRequest = 0, unreadLatest = {};
   let me, rooms = [], selected = '', settingsOpen = false, creating = false, busy = false, lastMessages = '', firstLoad = true, unreadRooms = {}, marked = {}, marking = {};
 
   // Jellyfin 12.4 has both a classic header and a React/MUI toolbar. Reattach after SPA navigation.
@@ -134,14 +150,40 @@
   function actionIcon(name, label, handler) {
     const b = el('button', null, 'jfc-icon-button'); b.type = 'button'; b.title = label; b.setAttribute('aria-label', label); b.append(icon(name)); b.onclick = handler; return b;
   }
-  function resetUnread() { unreadRooms = {}; marked = {}; marking = {}; badge.hidden = true; badge.textContent = ''; button.title = 'Chat'; button.setAttribute('aria-label', 'Chat openen'); }
+  function hideNotice() { notice.hidden = true; clearTimeout(noticeTimer); }
+  function otherUnread(counts) {
+    return Object.entries(counts).filter(([id, count]) => Number(count) > 0 &&
+      (panel.hidden || settingsOpen || creating || normalizeId(id) !== normalizeId(selected)));
+  }
+  function showNotice(counts) {
+    const total = otherUnread(counts).reduce((sum, [, count]) => sum + Math.max(0, Number(count) || 0), 0);
+    if (!total) { noticePending = false; hideNotice(); return; }
+    if (document.hidden) { noticePending = true; return; }
+    noticePending = false;
+    noticeTitle.textContent = total === 1 ? 'Je hebt een nieuw chatbericht' : `Je hebt ${total} ongelezen chatberichten`;
+    notice.hidden = false; clearTimeout(noticeTimer); noticeTimer = setTimeout(hideNotice, 8000);
+  }
+  noticeClose.onclick = () => { noticePending = false; hideNotice(); };
+  noticeOpen.onclick = async () => {
+    const target = otherUnread(unreadRooms)[0]?.[0];
+    noticePending = false; hideNotice();
+    if (target) selected = target;
+    panel.hidden = false; button.setAttribute('aria-expanded', 'true'); settingsOpen = false; creating = false; firstLoad = true;
+    try { await render(); } catch(e) { error(e); }
+  };
+  function resetUnread() { unreadRequest++; unreadSeen = false; noticePending = false; hideNotice(); unreadRooms = {}; unreadLatest = {}; marked = {}; marking = {}; badge.hidden = true; badge.textContent = ''; button.title = 'Chat'; button.setAttribute('aria-label', 'Chat openen'); }
   async function refreshUnread() {
     if (!me?.enabled) return;
-    const user = normalizeId(me.userId);
+    const user = normalizeId(me.userId), request = ++unreadRequest;
     try {
       const data = await api('unread');
-      if (!me?.enabled || user !== normalizeId(me.userId)) return;
-      unreadRooms = data.rooms || {};
+      if (!me?.enabled || user !== normalizeId(me.userId) || request !== unreadRequest) return;
+      const next = data.rooms || {}, nextLatest = data.latest || {};
+      const increased = otherUnread(next).some(([id, count]) => !unreadSeen || Number(count) > (Number(unreadRooms[id]) || 0) ||
+        (unreadLatest[id] && nextLatest[id] && unreadLatest[id] !== nextLatest[id]));
+      unreadRooms = next; unreadLatest = nextLatest; unreadSeen = true;
+      if (increased) showNotice(next);
+      else if (!otherUnread(next).length) { noticePending = false; hideNotice(); }
       const total = Math.max(0, Number(data.total) || 0);
       badge.hidden = total === 0; badge.textContent = total ? (total > 99 ? '99+' : String(total)) : '';
       const label = total ? `Chat openen, ${total} ongelezen berichten` : 'Chat openen';
@@ -263,9 +305,9 @@
     if (!data.rooms.length) groups.append(el('p', 'Nog geen groepen.', 'jfc-hint'));
     data.rooms.forEach(r => { const row = el('div', null, 'jfc-room-item'); row.append(el('span', r.name + (r.adminOnly ? ' · Aankondigingen' : ''))); const del = el('button', 'Verwijderen', 'jfc-delete'); del.type = 'button'; del.setAttribute('aria-label', r.name + ' verwijderen'); del.onclick = async () => { if (!confirm('Groep en alle berichten definitief verwijderen?')) return; del.disabled = true; try { await api('rooms/' + r.id, 'DELETE'); await render(); } catch(e) { error(e); del.disabled = false; } }; row.append(del); groups.append(row); });
   }
-  button.onclick = async () => { if (!panel.hidden) { closePanel(); return; } panel.hidden = false; button.setAttribute('aria-expanded', 'true'); settingsOpen = false; creating = false; firstLoad = true; try { await render(); } catch(e) { error(e); } };
+  button.onclick = async () => { if (!panel.hidden) { closePanel(); return; } noticePending = false; hideNotice(); panel.hidden = false; button.setAttribute('aria-expanded', 'true'); settingsOpen = false; creating = false; firstLoad = true; try { await render(); } catch(e) { error(e); } };
   panel.addEventListener('keydown', event => { if (event.key === 'Escape') closePanel(); });
   async function check() { try { const current = await api('me'); if (me && normalizeId(me.userId) !== normalizeId(current.userId)) { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); selected = ''; lastMessages = ''; resetUnread(); } me = current; button.hidden = !me.enabled; if (!me.enabled) { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); resetUnread(); } else await refreshUnread(); } catch { button.hidden = true; panel.hidden = true; button.setAttribute('aria-expanded', 'false'); me = null; resetUnread(); } }
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && !panel.hidden && !settingsOpen && !creating) loadMessages().catch(error); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (noticePending) showNotice(unreadRooms); if (!panel.hidden && !settingsOpen && !creating) loadMessages().catch(error); } else hideNotice(); });
   check(); setInterval(check, 10000); setInterval(() => { if (me?.enabled) refreshUnread(); if (!panel.hidden && !settingsOpen && !creating && !document.hidden) loadMessages().catch(error); }, 4000);
 })();

@@ -153,3 +153,43 @@ test('a hidden browser tab does not mark messages read', async t => {
   w.document.dispatchEvent(new w.Event('visibilitychange')); await wait();
   assert.ok(calls.some(c => c.url.endsWith('/read')));
 });
+
+test('new messages show a private, clickable notification without repeated popups', async t => {
+  const { w, intervals, setUnread, setMessages, cleanup } = await setup(); t.after(cleanup);
+  const doc = w.document, notice = doc.querySelector('#jfc-notice');
+  setMessages([{ id: 'new-message', userId: 'other', userName: 'Ander', text: 'Een privébericht', time: '2026-01-01T12:00:00Z' }]);
+  setUnread({ total: 1, rooms: { room1: 1 }, latest: { room1: 'new-message' } }); await intervals[0]();
+  assert.equal(notice.hidden, false);
+  assert.match(notice.textContent, /nieuw chatbericht/);
+  assert.doesNotMatch(notice.textContent, /privébericht|Ander/);
+  doc.querySelector('.jfc-notice-close').click(); assert.equal(notice.hidden, true);
+  await intervals[0](); assert.equal(notice.hidden, true);
+  // Another device can read one message while a new one arrives: the count stays the same.
+  setUnread({ total: 1, rooms: { room1: 1 }, latest: { room1: 'newer-message' } }); await intervals[0]();
+  assert.equal(notice.hidden, false);
+  doc.querySelector('.jfc-notice-open').click(); await wait();
+  assert.equal(notice.hidden, true);
+  assert.equal(doc.querySelector('#jf-chat').hidden, false);
+  assert.equal(doc.querySelector('#jfc-room-select').value, 'room1');
+});
+
+test('notifications wait until a hidden tab is visible and are cleared when access is removed', async t => {
+  const { w, intervals, setUnread, setEnabled, cleanup } = await setup(); t.after(cleanup);
+  const doc = w.document, notice = doc.querySelector('#jfc-notice');
+  Object.defineProperty(doc, 'hidden', { configurable: true, value: true });
+  setUnread({ total: 2, rooms: { room1: 2 }, latest: { room1: 'newest' } }); await intervals[0]();
+  assert.equal(notice.hidden, true);
+  Object.defineProperty(doc, 'hidden', { configurable: true, value: false });
+  doc.dispatchEvent(new w.Event('visibilitychange'));
+  assert.equal(notice.hidden, false);
+  assert.match(notice.textContent, /2 ongelezen/);
+  setEnabled(false); await intervals[0]();
+  assert.equal(notice.hidden, true);
+});
+
+test('messages in the currently open room do not trigger a popup', async t => {
+  const { w, intervals, setUnread, cleanup } = await setup(); t.after(cleanup);
+  const doc = w.document; doc.querySelector('#jf-chat-button').click(); await wait();
+  setUnread({ total: 1, rooms: { room1: 1 }, latest: { room1: 'new-message' } }); await intervals[0]();
+  assert.equal(doc.querySelector('#jfc-notice').hidden, true);
+});
