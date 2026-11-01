@@ -43,16 +43,9 @@ public static class ChatWebInjection
     {
         var path = context.Request.Path.Value ?? string.Empty;
         var prefix = (baseUrl ?? string.Empty).TrimEnd('/');
-        // Some hosts have already moved the configured base URL into PathBase
-        // before startup filters run. Others still include it in Request.Path.
-        var pathBase = (context.Request.PathBase.Value ?? string.Empty).TrimEnd('/');
-        var effectivePrefix = prefix.Length > 0 && pathBase.Equals(prefix, StringComparison.OrdinalIgnoreCase)
-            ? string.Empty : prefix;
-        var webRoot = effectivePrefix + "/web";
         if (!HttpMethods.IsGet(context.Request.Method) ||
-            !(path.Equals(webRoot, StringComparison.OrdinalIgnoreCase) ||
-              path.Equals(webRoot + "/", StringComparison.OrdinalIgnoreCase) ||
-              path.Equals(webRoot + "/index.html", StringComparison.OrdinalIgnoreCase)))
+            !(path.Equals(prefix + "/web/", StringComparison.OrdinalIgnoreCase) ||
+              path.Equals(prefix + "/web/index.html", StringComparison.OrdinalIgnoreCase)))
         {
             await next(context).ConfigureAwait(false);
             return;
@@ -88,12 +81,7 @@ public static class ChatWebInjection
             var end = html.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
             if (end >= 0 && !html.Contains("ChatPlugin/chat.js", StringComparison.OrdinalIgnoreCase))
             {
-                // When a proxy serves /web without redirecting to /web/, the usual
-                // ../ URL resolves one directory too high. Account for that form.
-                var script = path.EndsWith("/web", StringComparison.OrdinalIgnoreCase)
-                    ? Script.Replace("../ChatPlugin/", "web/../ChatPlugin/", StringComparison.Ordinal)
-                    : Script;
-                bytes = Encoding.UTF8.GetBytes(html.Insert(end, script));
+                bytes = Encoding.UTF8.GetBytes(html.Insert(end, Script));
                 response.ContentLength = bytes.Length;
                 response.Headers.Remove("ETag");
                 response.Headers.Remove("Content-MD5");
