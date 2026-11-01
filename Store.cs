@@ -9,6 +9,8 @@ public class ChatState
     public List<Guid> AllowedUsers { get; set; } = new();
     public List<Room> Rooms { get; set; } = new() { new Room { Name = "Algemeen" } };
     public List<Message> Messages { get; set; } = new();
+    public Dictionary<Guid, Dictionary<Guid, Guid>> ReadMarks { get; set; } = new();
+    public HashSet<Guid> AnnouncedMovies { get; set; } = new();
 }
 public class Room
 {
@@ -26,6 +28,11 @@ public class Room
 }
 public class Message
 {
+    [JsonPropertyName("id")]
+    public Guid Id { get; set; } = Guid.NewGuid();
+    // A movie announcement is only shown to users who can access that movie.
+    [JsonPropertyName("movieId")]
+    public Guid? MovieId { get; set; }
     [JsonPropertyName("roomId")]
     public Guid RoomId { get; set; }
     [JsonPropertyName("userId")]

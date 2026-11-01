@@ -15,7 +15,10 @@ namespace Jellyfin.Plugin.Chat;
 public sealed class ChatServiceRegistrator : IPluginServiceRegistrator
 {
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
-        => serviceCollection.AddSingleton<IStartupFilter, ChatStartupFilter>();
+    {
+        serviceCollection.AddSingleton<IStartupFilter, ChatStartupFilter>();
+        serviceCollection.AddHostedService<MovieAnnouncements>();
+    }
 }
 
 public sealed class ChatStartupFilter : IStartupFilter

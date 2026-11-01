@@ -5,7 +5,9 @@
 
   const style = document.createElement('style');
   style.textContent = `
-    #jf-chat-button { box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; width:48px; height:48px; padding:12px; border:0; border-radius:50%; background:transparent; color:inherit; cursor:pointer; flex-shrink:0; }
+    #jf-chat-button { box-sizing:border-box; display:inline-flex; align-items:center; justify-content:center; position:relative; width:48px; height:48px; padding:12px; border:0; border-radius:50%; background:transparent; color:inherit; cursor:pointer; flex-shrink:0; }
+    #jf-chat-button .jfc-badge { position:absolute; top:3px; right:2px; min-width:18px; height:18px; padding:0 4px; display:grid; place-items:center; border:2px solid #151515; border-radius:10px; background:#21a453; color:#fff; font:700 10px/1 sans-serif; }
+    #jf-chat-button .jfc-badge[hidden] { display:none; }
     #jf-chat-button:hover, #jf-chat-button[aria-expanded="true"] { background:rgba(255,255,255,.1); }
     #jf-chat-button:focus-visible, #jf-chat :focus-visible { outline:2px solid #00a4dc; outline-offset:2px; }
     #jf-chat-button[hidden], #jf-chat[hidden] { display:none !important; }
@@ -94,10 +96,10 @@
     svg.append(path); return svg;
   }
   const el = (tag, text, className) => { const node = document.createElement(tag); if (text != null) node.textContent = text; if (className) node.className = className; return node; };
-  const button = el('button'); button.id = 'jf-chat-button'; button.type = 'button'; button.title = 'Chat'; button.setAttribute('aria-label', 'Chat openen'); button.setAttribute('aria-expanded', 'false'); button.setAttribute('aria-controls', 'jf-chat'); button.append(icon('chat')); button.hidden = true;
+  const button = el('button'); button.id = 'jf-chat-button'; button.type = 'button'; button.title = 'Chat'; button.setAttribute('aria-label', 'Chat openen'); button.setAttribute('aria-expanded', 'false'); button.setAttribute('aria-controls', 'jf-chat'); button.append(icon('chat')); const badge = el('span', null, 'jfc-badge'); badge.hidden = true; badge.setAttribute('aria-hidden', 'true'); button.append(badge); button.hidden = true;
   const panel = el('section'); panel.id = 'jf-chat'; panel.hidden = true; panel.setAttribute('role', 'region'); panel.setAttribute('aria-label', 'Chat');
   document.body.append(button, panel);
-  let me, rooms = [], selected = '', settingsOpen = false, creating = false, busy = false, lastMessages = '', firstLoad = true;
+  let me, rooms = [], selected = '', settingsOpen = false, creating = false, busy = false, lastMessages = '', firstLoad = true, unreadRooms = {}, marked = {}, marking = {};
 
   // Jellyfin 12.4 has both a classic header and a React/MUI toolbar. Reattach after SPA navigation.
   function placeButton() {
@@ -132,6 +134,35 @@
   function actionIcon(name, label, handler) {
     const b = el('button', null, 'jfc-icon-button'); b.type = 'button'; b.title = label; b.setAttribute('aria-label', label); b.append(icon(name)); b.onclick = handler; return b;
   }
+  function resetUnread() { unreadRooms = {}; marked = {}; marking = {}; badge.hidden = true; badge.textContent = ''; button.title = 'Chat'; button.setAttribute('aria-label', 'Chat openen'); }
+  async function refreshUnread() {
+    if (!me?.enabled) return;
+    const user = normalizeId(me.userId);
+    try {
+      const data = await api('unread');
+      if (!me?.enabled || user !== normalizeId(me.userId)) return;
+      unreadRooms = data.rooms || {};
+      const total = Math.max(0, Number(data.total) || 0);
+      badge.hidden = total === 0; badge.textContent = total ? (total > 99 ? '99+' : String(total)) : '';
+      const label = total ? `Chat openen, ${total} ongelezen berichten` : 'Chat openen';
+      button.title = label; button.setAttribute('aria-label', label);
+      const select = panel.querySelector('#jfc-room-select');
+      if (select) for (const option of select.options) {
+        const room = rooms.find(r => r.id === option.value); if (!room) continue;
+        const count = unreadRooms[room.id] || 0;
+        option.textContent = room.name + (room.adminOnly ? ' · Aankondigingen' : '') + (count ? ` (${count} nieuw)` : '');
+      }
+    } catch { /* A temporary network failure must not dismiss the chat. */ }
+  }
+  async function markRead(roomId, messageId) {
+    if (!messageId || marked[roomId] === messageId || marking[roomId] || panel.hidden || settingsOpen || creating || document.hidden || selected !== roomId) return;
+    const user = normalizeId(me?.userId); marking[roomId] = true;
+    try {
+      await api('rooms/' + roomId + '/read', 'POST', { messageId });
+      if (user === normalizeId(me?.userId)) { marked[roomId] = messageId; await refreshUnread(); }
+    } catch { /* Retry on the next refresh. */ }
+    finally { delete marking[roomId]; }
+  }
   async function refreshRooms() { rooms = await api('rooms'); if (!rooms.some(r => r.id === selected)) selected = rooms[0]?.id || ''; }
   async function render() {
     panel.replaceChildren();
@@ -153,7 +184,7 @@
     const room = rooms.find(r => r.id === selected);
     const bar = el('div', null, 'jfc-room-bar'), mark = el('span', '#', 'jfc-room-mark'), picker = el('div', null, 'jfc-room-picker');
     mark.setAttribute('aria-hidden', 'true'); const label = el('label', 'Groep'); label.htmlFor = 'jfc-room-select';
-    const select = el('select'); select.id = 'jfc-room-select'; rooms.forEach(r => { const o = el('option', r.name + (r.adminOnly ? ' · Aankondigingen' : '')); o.value = r.id; select.append(o); }); select.value = selected;
+    const select = el('select'); select.id = 'jfc-room-select'; rooms.forEach(r => { const o = el('option', r.name + (r.adminOnly ? ' · Aankondigingen' : '')); o.value = r.id; if (unreadRooms[r.id]) o.textContent += ` (${unreadRooms[r.id]} nieuw)`; select.append(o); }); select.value = selected;
     select.onchange = async () => { selected = select.value; firstLoad = true; lastMessages = ''; try { await render(); } catch (e) { error(e); } };
     picker.append(label, select); bar.append(mark, picker); if (room.adminOnly) bar.append(el('span', 'Aankondigingen', 'jfc-room-note')); panel.append(bar);
     const main = el('main', null, 'jfc-messages'); main.id = 'jf-chat-messages'; main.setAttribute('aria-label', 'Berichten'); panel.append(main);
@@ -170,6 +201,8 @@
   async function loadMessages() {
     const target = panel.querySelector('#jf-chat-messages'); if (!target || !selected) return;
     const id = selected, messages = await api('rooms/' + id + '/messages'); if (selected !== id || !target.isConnected) return;
+    const last = messages[messages.length - 1];
+    if (last) void markRead(id, last.id);
     const fingerprint = JSON.stringify(messages); if (!firstLoad && fingerprint === lastMessages) return;
     const atBottom = firstLoad || target.scrollHeight - target.scrollTop - target.clientHeight < 80; firstLoad = false; lastMessages = fingerprint; target.replaceChildren();
     if (!messages.length) { const empty = el('div', null, 'jfc-empty'); empty.append(el('strong', 'Begin het gesprek'), el('span', 'Er zijn nog geen berichten in deze groep.')); target.append(empty); }
@@ -232,6 +265,7 @@
   }
   button.onclick = async () => { if (!panel.hidden) { closePanel(); return; } panel.hidden = false; button.setAttribute('aria-expanded', 'true'); settingsOpen = false; creating = false; firstLoad = true; try { await render(); } catch(e) { error(e); } };
   panel.addEventListener('keydown', event => { if (event.key === 'Escape') closePanel(); });
-  async function check() { try { const current = await api('me'); if (me && normalizeId(me.userId) !== normalizeId(current.userId)) { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); selected = ''; lastMessages = ''; } me = current; button.hidden = !me.enabled; if (!me.enabled) { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); } } catch { button.hidden = true; panel.hidden = true; button.setAttribute('aria-expanded', 'false'); me = null; } }
-  check(); setInterval(check, 10000); setInterval(() => { if (!panel.hidden && !settingsOpen && !creating) loadMessages().catch(error); }, 4000);
+  async function check() { try { const current = await api('me'); if (me && normalizeId(me.userId) !== normalizeId(current.userId)) { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); selected = ''; lastMessages = ''; resetUnread(); } me = current; button.hidden = !me.enabled; if (!me.enabled) { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); resetUnread(); } else await refreshUnread(); } catch { button.hidden = true; panel.hidden = true; button.setAttribute('aria-expanded', 'false'); me = null; resetUnread(); } }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && !panel.hidden && !settingsOpen && !creating) loadMessages().catch(error); });
+  check(); setInterval(check, 10000); setInterval(() => { if (me?.enabled) refreshUnread(); if (!panel.hidden && !settingsOpen && !creating && !document.hidden) loadMessages().catch(error); }, 4000);
 })();

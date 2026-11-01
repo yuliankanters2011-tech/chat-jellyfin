@@ -12,7 +12,14 @@ namespace Jellyfin.Plugin.Chat;
 public class ChatController : ControllerBase
 {
     private readonly IUserManager _users;
-    public ChatController(IUserManager users) => _users = users;
+    private readonly ILibraryManager _library;
+    public ChatController(IUserManager users, ILibraryManager library) { _users = users; _library = library; }
+    private bool CanSeeMessage(Message message, User user)
+    {
+        if (message.MovieId is not Guid movieId) return true;
+        try { return _library.GetItemById(movieId)?.IsVisibleStandalone(user) == true; }
+        catch { return false; } // Fail closed if a library or permission check is unavailable.
+    }
     private User? Current => Guid.TryParse(User.FindFirst("Jellyfin-UserId")?.Value, out var id) && id != Guid.Empty ? _users.GetUserById(id) : null;
     private static bool Admin(User u) => u.HasPermission(PermissionKind.IsAdministrator);
     private static bool Enabled(ChatState s, User u) => Admin(u) || s.Everyone || s.AllowedUsers.Contains(u.Id);
@@ -41,7 +48,40 @@ public class ChatController : ControllerBase
     public IActionResult Messages(Guid id)
     {
         var u = Current; if (u == null) return Unauthorized();
-        return Store.Read<IActionResult>(s => !Enabled(s, u) || !s.Rooms.Any(r => r.Id == id && Visible(r, u)) ? Forbid() : Ok(s.Messages.Where(m => m.RoomId == id).TakeLast(200).ToArray()));
+        return Store.Read<IActionResult>(s => !Enabled(s, u) || !s.Rooms.Any(r => r.Id == id && Visible(r, u)) ? Forbid() : Ok(s.Messages.Where(m => m.RoomId == id && CanSeeMessage(m, u)).TakeLast(200).ToArray()));
+    }
+    [Authorize, HttpGet("unread")]
+    public IActionResult Unread()
+    {
+        var u = Current; if (u == null) return Unauthorized();
+        return Store.Read<IActionResult>(s => {
+            if (!Enabled(s, u)) return Forbid();
+            var counts = new Dictionary<string, int>();
+            s.ReadMarks.TryGetValue(u.Id, out var marks);
+            foreach (var room in s.Rooms.Where(r => Visible(r, u)))
+            {
+                var all = s.Messages.Where(m => m.RoomId == room.Id).ToList();
+                var index = marks != null && marks.TryGetValue(room.Id, out var last) ? all.FindIndex(m => m.Id == last) : -1;
+                var count = all.Skip(index + 1).Count(m => m.UserId != u.Id && CanSeeMessage(m, u));
+                if (count > 0) counts[room.Id.ToString("N")] = count;
+            }
+            return Ok(new { total = counts.Values.Sum(), rooms = counts });
+        });
+    }
+    public class ReadRequest { public Guid MessageId { get; set; } }
+    [Authorize, HttpPost("rooms/{id:guid}/read")]
+    public IActionResult MarkRead(Guid id, [FromBody] ReadRequest request)
+    {
+        var u = Current; if (u == null) return Unauthorized();
+        return Store.Change<IActionResult>(s => {
+            if (!Enabled(s, u) || !s.Rooms.Any(r => r.Id == id && Visible(r, u))) return Forbid();
+            var all = s.Messages.Where(m => m.RoomId == id).ToList();
+            var index = all.FindIndex(m => m.Id == request.MessageId && CanSeeMessage(m, u));
+            if (index < 0) return BadRequest();
+            if (!s.ReadMarks.TryGetValue(u.Id, out var marks)) s.ReadMarks[u.Id] = marks = new();
+            if (!marks.TryGetValue(id, out var previous) || all.FindIndex(m => m.Id == previous) < index) marks[id] = request.MessageId;
+            return Ok();
+        });
     }
     public class SendRequest { public string? Text { get; set; } }
     [Authorize, HttpPost("rooms/{id:guid}/messages")]
@@ -119,6 +159,6 @@ public class ChatController : ControllerBase
     public IActionResult DeleteRoom(Guid id)
     {
         var u = Current; if (u == null || !Admin(u)) return Forbid();
-        return Store.Change<IActionResult>(s => { if (s.Rooms.RemoveAll(r => r.Id == id) == 0) return NotFound(); s.Messages.RemoveAll(m => m.RoomId == id); return Ok(); });
+        return Store.Change<IActionResult>(s => { if (s.Rooms.RemoveAll(r => r.Id == id) == 0) return NotFound(); s.Messages.RemoveAll(m => m.RoomId == id); foreach (var marks in s.ReadMarks.Values) marks.Remove(id); return Ok(); });
     }
 }
