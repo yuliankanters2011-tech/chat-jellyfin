@@ -15,7 +15,8 @@ async function setup(header = '<div class="skinHeader"><div class="headerRight">
   const cleanup = () => { observers.forEach(observer => observer.disconnect()); dom.window.close(); };
   let admin = true, enabled = true, userId = 'abcdefab-cdef-abcd-efab-cdefabcdefab';
   let rooms = [{ id: 'room1', name: 'Algemeen', adminOnly: false, members: [] }];
-  let messages = [{ userId: 'abcdefabcdefabcdefabcdefabcdefab', userName: 'Tester', text: '<img src=x onerror=alert(1)>', time: '2026-01-01T12:00:00Z' }];
+  let unread = { total: 0, rooms: {} };
+  let messages = [{ id: 'message1', userId: 'abcdefabcdefabcdefabcdefabcdefab', userName: 'Tester', text: '<img src=x onerror=alert(1)>', time: '2026-01-01T12:00:00Z' }];
   w.ApiClient = { accessToken: () => 'token', getUrl: p => '/' + p };
   w.setInterval = fn => { intervals.push(fn); return intervals.length; };
   w.confirm = () => true;
@@ -25,17 +26,19 @@ async function setup(header = '<div class="skinHeader"><div class="headerRight">
     let data = null;
     if (path === 'me') data = { enabled, admin, userId };
     else if (path === 'rooms' && options.method === 'GET') data = rooms;
+    else if (path === 'unread') data = unread;
+    else if (path.endsWith('/read') && options.method === 'POST') unread = { total: 0, rooms: {} };
     else if (path === 'users') data = [{ id: 'other', name: 'Andere gebruiker' }];
     else if (path === 'direct' && options.method === 'POST') { data = { id: 'dm', name: 'Privé', direct: true }; rooms = [...rooms, data]; }
     else if (path === 'settings' && options.method === 'GET') data = { everyone: true, allowedUsers: [], rooms, users: [{ id: userId, name: 'Tester' }] };
     else if (path.endsWith('/messages') && options.method === 'GET') data = messages;
-    else if (path.endsWith('/messages') && options.method === 'POST') messages = [...messages, { userId, userName: 'Tester', text: JSON.parse(options.body).text, time: '2026-01-01T12:01:00Z' }];
+    else if (path.endsWith('/messages') && options.method === 'POST') messages = [...messages, { id: 'message2', userId, userName: 'Tester', text: JSON.parse(options.body).text, time: '2026-01-01T12:01:00Z' }];
     else if (path === 'rooms' && options.method === 'POST') { data = { ...JSON.parse(options.body), id: 'room2' }; rooms = [...rooms, data]; }
     else if (path.startsWith('rooms/') && options.method === 'DELETE') rooms = rooms.filter(r => !path.endsWith(r.id));
     return { ok: true, text: async () => data === null ? '' : JSON.stringify(data) };
   };
   w.eval(script); await wait();
-  return { dom, w, calls, intervals, cleanup, setAdmin: value => { admin = value; }, setEnabled: value => { enabled = value; }, setUser: value => { userId = value; }, setRooms: value => { rooms = value; } };
+  return { dom, w, calls, intervals, cleanup, setAdmin: value => { admin = value; }, setEnabled: value => { enabled = value; }, setUser: value => { userId = value; }, setRooms: value => { rooms = value; }, setUnread: value => { unread = value; }, setMessages: value => { messages = value; } };
 }
 
 test('classic header, safe messages, sending and settings work', async t => {
@@ -126,4 +129,27 @@ test('non-admin can start a direct chat and a group, with admin visibility expla
   doc.querySelector('input[type=checkbox]').click();
   [...doc.querySelectorAll('button')].find(b => b.textContent === 'Groep maken').click(); await wait();
   assert.ok(calls.some(c => c.url.endsWith('/rooms') && c.method === 'POST' && JSON.parse(c.body).members[0] === 'other'));
+});
+
+
+test('green unread badge updates and a visible open room is marked read', async t => {
+  const { w, calls, intervals, setUnread, setMessages, cleanup } = await setup(); t.after(cleanup);
+  const doc = w.document; setUnread({ total: 3, rooms: { room1: 3 } }); await intervals[0]();
+  const badge = doc.querySelector('.jfc-badge'); assert.equal(badge.hidden, false); assert.equal(badge.textContent, '3');
+  assert.match(doc.querySelector('#jf-chat-button').getAttribute('aria-label'), /3 ongelezen/);
+  setMessages([{ id: 'last-message', userId: 'other', userName: 'Ander', text: 'Hallo', time: '2026-01-01T12:00:00Z' }]);
+  doc.querySelector('#jf-chat-button').click(); await wait();
+  assert.ok(calls.some(c => c.url.endsWith('/rooms/room1/read') && JSON.parse(c.body).messageId === 'last-message'));
+  assert.equal(badge.hidden, true);
+});
+
+test('a hidden browser tab does not mark messages read', async t => {
+  const { w, calls, setMessages, cleanup } = await setup(); t.after(cleanup);
+  Object.defineProperty(w.document, 'hidden', { configurable: true, value: true });
+  setMessages([{ id: 'hidden-message', userId: 'other', userName: 'Ander', text: 'Hallo', time: '2026-01-01T12:00:00Z' }]);
+  w.document.querySelector('#jf-chat-button').click(); await wait();
+  assert.ok(!calls.some(c => c.url.endsWith('/read')));
+  Object.defineProperty(w.document, 'hidden', { configurable: true, value: false });
+  w.document.dispatchEvent(new w.Event('visibilitychange')); await wait();
+  assert.ok(calls.some(c => c.url.endsWith('/read')));
 });

@@ -15,11 +15,11 @@ cleanup() {
   exit "$code"
 }
 trap cleanup EXIT
-mkdir -p "$work/config/plugins/Chat" "$work/cache"
+mkdir -p "$work/config/plugins/Chat" "$work/cache" "$work/media/Films"
 cp publish/Jellyfin.Plugin.Chat.dll "$work/config/plugins/Chat/"
 chmod -R a+rwX "$work"
 docker run -d --user "$(id -u):$(id -g)" --name "$name" -p 127.0.0.1:18096:8096 \
-  -v "$work/config:/config" -v "$work/cache:/cache" jellyfin/jellyfin:12.4 >/dev/null
+  -v "$work/config:/config" -v "$work/cache:/cache" -v "$work/media:/media" jellyfin/jellyfin:12.4 >/dev/null
 url=http://127.0.0.1:18096
 stage="wachten op Jellyfin"
 ready=false
@@ -99,6 +99,14 @@ reverse=$(as_user "$bob_token" -X POST -H 'Content-Type: application/json' -d "{
 request "$url/ChatPlugin/rooms" | jq -e --arg id "$direct" 'any(.[]; .id == $id)' >/dev/null
 as_user "$alice_token" -X POST -H 'Content-Type: application/json' -d '{"text":"privé"}' "$url/ChatPlugin/rooms/$direct/messages" >/dev/null
 as_user "$bob_token" "$url/ChatPlugin/rooms/$direct/messages" | jq -e '.[-1].text == "privé"' >/dev/null
+# Only the recipient sees the unread message; a read marker is scoped to that room.
+as_user "$bob_token" "$url/ChatPlugin/unread" | jq -e --arg id "$direct" '.rooms[$id] == 1' >/dev/null
+as_user "$alice_token" "$url/ChatPlugin/unread" | jq -e --arg id "$direct" '(.rooms[$id] // 0) == 0' >/dev/null
+message=$(as_user "$bob_token" "$url/ChatPlugin/rooms/$direct/messages" | jq -er '.[-1].id')
+as_user "$bob_token" -X POST -H 'Content-Type: application/json' -d "{\"messageId\":\"$message\"}" "$url/ChatPlugin/rooms/$direct/read" >/dev/null
+as_user "$bob_token" "$url/ChatPlugin/unread" | jq -e --arg id "$direct" '(.rooms[$id] // 0) == 0' >/dev/null
+[[ $(curl -s -o /dev/null -w '%{http_code}' -X POST -H "$outsider_header" -H 'Content-Type: application/json' -d "{\"messageId\":\"$message\"}" "$url/ChatPlugin/rooms/$direct/read") == 403 ]]
+
 [[ $(curl -s -o /dev/null -w '%{http_code}' -H "$outsider_header" "$url/ChatPlugin/rooms/$direct/messages") == 403 ]]
 [[ $(curl -s -o /dev/null -w '%{http_code}' -X DELETE -H "$alice_header" "$url/ChatPlugin/rooms/$direct") == 403 ]]
 group=$(as_user "$alice_token" -X POST -H 'Content-Type: application/json' -d "{\"name\":\"Vrienden\",\"members\":[\"$bob\"]}" "$url/ChatPlugin/rooms" | jq -er '.id')
@@ -114,4 +122,16 @@ request -X PUT -H 'Content-Type: application/json' -d "{\"everyone\":false,\"all
 request -X PUT -H 'Content-Type: application/json' -d '{"everyone":true,"allowedUsers":[]}' "$url/ChatPlugin/settings" >/dev/null
 request -X DELETE "$url/ChatPlugin/rooms/$direct" >/dev/null
 request -X DELETE "$url/ChatPlugin/rooms/$group" >/dev/null
+stage="automatische filmaankondiging controleren"
+# Add a real video to a temporary movie library and scan it.
+docker exec "$name" /usr/lib/jellyfin-ffmpeg/ffmpeg -loglevel error -f lavfi -i color=c=black:s=64x64:d=1 -c:v mpeg4 -y /media/Films/Testfilm.mp4
+request -X POST -H 'Content-Type: application/json' -d '{}' "$url/Library/VirtualFolders?name=Films&collectionType=movies&paths=%2Fmedia%2FFilms&refreshLibrary=true" >/dev/null
+found=false
+for _ in $(seq 1 90); do
+  notice=$(request "$url/ChatPlugin/rooms" | jq -r '.[] | select(.name == "Nieuwe films") | .id' | head -1)
+  if [[ -n "$notice" ]] && request "$url/ChatPlugin/rooms/$notice/messages" | jq -e 'any(.[]; .userName == "Jellyfin" and (.text | contains("Testfilm")))' >/dev/null; then found=true; break; fi
+  sleep 2
+done
+[[ "$found" == true ]]
+request "$url/ChatPlugin/rooms/$notice/messages" | jq -e '[.[] | select(.userName == "Jellyfin" and (.text | contains("Testfilm")))] | length == 1' >/dev/null
 printf 'Jellyfin 12.4 Docker smoke test passed.\n'
