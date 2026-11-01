@@ -6,23 +6,23 @@ const { JSDOM } = require('jsdom');
 const script = fs.readFileSync('Web/chat.js', 'utf8');
 const wait = () => new Promise(resolve => setTimeout(resolve, 40));
 
-async function setup(header = '<div class="skinHeader"><div class="headerRight"><button class="headerUserButton">Profiel</button></div></div>') {
+async function setup(header = '<div class="skinHeader"><div class="headerRight"><button class="headerUserButton">Profiel</button></div></div>', initialToken = 'token') {
   const dom = new JSDOM(`<!doctype html><html><head></head><body>${header}</body></html>`, { url: 'http://jellyfin.test/web/', runScripts: 'outside-only', pretendToBeVisual: true });
   const w = dom.window;
-  const calls = [], intervals = [], observers = [];
+  const calls = [], intervals = [], intervalDelays = [], observers = [];
   // jsdom does not lay out elements; model an attached, visible header.
   w.HTMLElement.prototype.getClientRects = function () { return this.isConnected ? [{ width: 100, height: 48 }] : []; };
   w.HTMLElement.prototype.getBoundingClientRect = function () { return { top: 0, bottom: 48, left: 0, right: 100, width: 100, height: 48 }; };
   const NativeObserver = w.MutationObserver;
   w.MutationObserver = class extends NativeObserver { constructor(callback) { super(callback); observers.push(this); } };
   const cleanup = () => { observers.forEach(observer => observer.disconnect()); dom.window.close(); };
-  let failure = null, token = 'token';
+  let failure = null, token = initialToken;
   let admin = true, enabled = true, userId = 'abcdefab-cdef-abcd-efab-cdefabcdefab';
   let rooms = [{ id: 'room1', name: 'Algemeen', adminOnly: false, members: [] }];
   let unread = { total: 0, rooms: {} };
   let messages = [{ id: 'message1', userId: 'abcdefabcdefabcdefabcdefabcdefab', userName: 'Tester', text: '<img src=x onerror=alert(1)>', time: '2026-01-01T12:00:00Z' }];
   w.ApiClient = { accessToken: () => token, getUrl: p => '/' + p };
-  w.setInterval = fn => { intervals.push(fn); return intervals.length; };
+  w.setInterval = (fn, delay) => { intervals.push(fn); intervalDelays.push(delay); return intervals.length; };
   w.confirm = () => true;
   w.fetch = async (url, options) => {
     calls.push({ url, ...options });
@@ -43,7 +43,7 @@ async function setup(header = '<div class="skinHeader"><div class="headerRight">
     return { ok: true, text: async () => data === null ? '' : JSON.stringify(data) };
   };
   w.eval(script); await wait();
-  return { dom, w, calls, intervals, cleanup, setAdmin: value => { admin = value; }, setEnabled: value => { enabled = value; }, setUser: value => { userId = value; }, setRooms: value => { rooms = value; }, setUnread: value => { unread = value; }, setMessages: value => { messages = value; }, setFailure: value => { failure = value; }, setToken: value => { token = value; } };
+  return { dom, w, calls, intervals, intervalDelays, cleanup, setAdmin: value => { admin = value; }, setEnabled: value => { enabled = value; }, setUser: value => { userId = value; }, setRooms: value => { rooms = value; }, setUnread: value => { unread = value; }, setMessages: value => { messages = value; }, setFailure: value => { failure = value; }, setToken: value => { token = value; } };
 }
 
 test('classic header, safe messages, sending and settings work', async t => {
@@ -250,5 +250,44 @@ test('an outdated authentication error cannot hide a newer successful session ch
   const old = intervals[0]();
   setFailure(null); await intervals[0]();
   complete({ ok: false, status: 401, text: async () => '' }); await old;
+  assert.equal(w.document.querySelector('#jf-chat-button').hidden, false);
+});
+
+
+test('session restored after script startup is detected without waiting for the five-second poll', async t => {
+  const { w, intervals, intervalDelays, calls, setToken, cleanup } = await setup(undefined, null); t.after(cleanup);
+  const button = w.document.querySelector('#jf-chat-button');
+  assert.equal(button.hidden, true);
+  assert.equal(calls.length, 0);
+  const client = w.ApiClient; delete w.ApiClient;
+  setToken('token'); w.ApiClient = client;
+  assert.equal(intervalDelays[2], 200);
+  await intervals[2]();
+  assert.equal(button.hidden, false);
+  assert.equal(calls.filter(c => c.url.endsWith('/me')).length, 1);
+  await intervals[2]();
+  assert.equal(calls.filter(c => c.url.endsWith('/me')).length, 1, 'unchanged token must not trigger requests');
+});
+
+test('rapid session detection hides the old chat on logout and fails closed on account switch', async t => {
+  const { w, intervals, setToken, setFailure, cleanup } = await setup(); t.after(cleanup);
+  const button = w.document.querySelector('#jf-chat-button');
+  button.click(); await wait();
+  setToken('other-token'); setFailure('network'); await intervals[2]();
+  assert.equal(button.hidden, true);
+  assert.equal(w.document.querySelector('#jf-chat').hidden, true);
+  setFailure(null); setToken(null); await intervals[2]();
+  assert.equal(button.hidden, true);
+});
+
+test('slow authorization is not continually restarted by rapid session detection', async t => {
+  const { w, intervals, setToken, setFailure, calls, cleanup } = await setup(undefined, null); t.after(cleanup);
+  let complete;
+  setToken('token'); setFailure(() => new Promise(resolve => { complete = resolve; }));
+  const check = intervals[2]();
+  await intervals[2](); await intervals[2]();
+  assert.equal(calls.filter(c => c.url.endsWith('/me')).length, 1);
+  complete({ ok: true, text: async () => JSON.stringify({ enabled: true, admin: true, userId: 'abcdefab-cdef-abcd-efab-cdefabcdefab' }) });
+  await check;
   assert.equal(w.document.querySelector('#jf-chat-button').hidden, false);
 });

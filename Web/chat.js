@@ -323,7 +323,7 @@
   }
   button.onclick = async () => { if (!panel.hidden) { closePanel(); return; } noticePending = false; hideNotice(); panel.hidden = false; button.setAttribute('aria-expanded', 'true'); settingsOpen = false; creating = false; firstLoad = true; try { await render(); } catch(e) { error(e); } };
   panel.addEventListener('keydown', event => { if (event.key === 'Escape') closePanel(); });
-  let confirmedToken = null, checkSequence = 0;
+  let confirmedToken = null, observedToken, checkSequence = 0;
   function clearSession() {
     button.hidden = true; panel.hidden = true; button.setAttribute('aria-expanded', 'false');
     me = null; confirmedToken = null; selected = ''; lastMessages = ''; resetUnread();
@@ -334,6 +334,7 @@
     let token;
     try {
       token = client()?.accessToken();
+      observedToken = token;
       if (!token) { clearSession(); return; }
       if (confirmedToken && confirmedToken !== token) clearSession();
       const current = await api('me');
@@ -358,4 +359,12 @@
 
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { check(); if (noticePending) showNotice(unreadRooms); if (!panel.hidden && !settingsOpen && !creating) loadMessages().catch(error); } else hideNotice(); });
   check(); setInterval(check, 5000); setInterval(() => { if (me?.enabled) refreshUnread(); if (!panel.hidden && !settingsOpen && !creating && !document.hidden) loadMessages().catch(error); }, 4000);
+  // The web app may create ApiClient or restore its session after our script
+  // runs. Detect that promptly instead of waiting for the next 5-second check.
+  // This checks only local state; it does not send a request unless it changes.
+  setInterval(() => {
+    let token;
+    try { token = client()?.accessToken(); } catch { token = undefined; }
+    if (token !== observedToken) { observedToken = token; return check(); }
+  }, 200);
 })();
