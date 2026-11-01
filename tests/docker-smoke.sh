@@ -103,6 +103,7 @@ as_user "$bob_token" "$url/ChatPlugin/rooms/$direct/messages" | jq -e '.[-1].tex
 as_user "$bob_token" "$url/ChatPlugin/unread" | jq -e --arg id "$direct" '.rooms[$id] == 1' >/dev/null
 as_user "$alice_token" "$url/ChatPlugin/unread" | jq -e --arg id "$direct" '(.rooms[$id] // 0) == 0' >/dev/null
 message=$(as_user "$bob_token" "$url/ChatPlugin/rooms/$direct/messages" | jq -er '.[-1].id')
+as_user "$bob_token" "$url/ChatPlugin/unread" | jq -e --arg id "$direct" --arg message "$message" '.latest[$id] == $message' >/dev/null
 as_user "$bob_token" -X POST -H 'Content-Type: application/json' -d "{\"messageId\":\"$message\"}" "$url/ChatPlugin/rooms/$direct/read" >/dev/null
 as_user "$bob_token" "$url/ChatPlugin/unread" | jq -e --arg id "$direct" '(.rooms[$id] // 0) == 0' >/dev/null
 [[ $(curl -s -o /dev/null -w '%{http_code}' -X POST -H "$outsider_header" -H 'Content-Type: application/json' -d "{\"messageId\":\"$message\"}" "$url/ChatPlugin/rooms/$direct/read") == 403 ]]
