@@ -18,9 +18,19 @@ Een eenvoudige chatplug-in voor **Jellyfin Server 12.4** en Jellyfin Web. Gebrui
 
 Het icoon werkt in Jellyfin Web dat door dezelfde Jellyfin-server wordt gehost. Een afzonderlijk gehoste webclient, native app, reverse proxy die zelf een webpagina serveert, of een proxy die scripts blokkeert wordt niet automatisch aangepast. Als je eerder handmatig de scriptregel hebt toegevoegd, hoeft dat niet opnieuw; verwijder die oude regel bij voorkeur zodat de webclient schoon blijft. Na installatie of een update is een serverherstart en browserherlaadbeurt nodig.
 
+### Raw GitHub-link
+
+Na samenvoegen naar `main` is ook deze raw-link beschikbaar:
+
+```text
+https://raw.githubusercontent.com/yuliankanters2011-tech/chat-jellyfin/main/repository/manifest.json
+```
+
+**Let op:** dit bestand is een momentopname van release 1.0.0.33 en wordt niet automatisch bijgewerkt. Gebruik bij voorkeur de `releases/latest`-link hierboven voor automatische updates. Om de raw-link bij te werken moet een beheerder na iedere publicatie het bijbehorende `manifest.json` uit de release naar `repository/manifest.json` kopiëren en die wijziging samenvoegen. Anders mist de raw-link nieuwe versies, inclusief eventuele oplossingen voor het chat-icoon.
+
 ### Releases voor beheerders van deze repository
 
-GitHub Actions bouwt bij een push naar `main` met .NET 10 de plugin en publiceert een release met de zip en een `manifest.json` met de MD5-checksum. De bovenstaande URL verwijst naar het manifest van de nieuwste release. De URL werkt pas nadat deze workflow op `main` succesvol is uitgevoerd; GitHub Actions moet releases mogen aanmaken. Pull requests worden alleen gebouwd en publiceren niets. Deze versie voor 12.4 is nog niet getest in een draaiende Jellyfin-server. Installeer de oude versie voor 10.10.7 niet op 12.4; verwijder die eerst en herstart de server.
+GitHub Actions bouwt bij een push naar `main` met .NET 10 de plugin en publiceert een release met de zip en een `manifest.json` met de MD5-checksum. De bovenstaande URL verwijst naar het manifest van de nieuwste release. De URL werkt pas nadat deze workflow op `main` succesvol is uitgevoerd; GitHub Actions moet releases mogen aanmaken. Pull requests worden alleen gebouwd en publiceren niets. De releaseworkflow test de plugin in een Jellyfin 12.4-Dockercontainer en een browser. Installeer de oude versie voor 10.10.7 niet op 12.4; verwijder die eerst en herstart de server.
 
 Voor handmatige installatie: bouw met `dotnet publish -c Release -o ./publish`, plaats `publish/Jellyfin.Plugin.Chat.dll` in een map `Chat` in de Jellyfin-pluginmap en herstart. Ook bij handmatige installatie wordt de webpagina automatisch aangepast tijdens het serveren. Voor andere Jellyfin-versies is compatibiliteit niet gegarandeerd.
 
