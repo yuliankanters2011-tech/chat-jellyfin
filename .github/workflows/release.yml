@@ -30,13 +30,15 @@ jobs:
           npm ci --ignore-scripts --no-audit --no-fund
           npm run test:ui
           node --check Web/chat.js
+      - name: Install browser for Jellyfin Web test
+        run: npx playwright install --with-deps chromium
       - name: Test on Jellyfin 12.4 in Docker
         run: |
           set +e
           bash tests/docker-smoke.sh > smoke-test.log 2>&1
           result=$?
           if [ "$result" -ne 0 ]; then
-            python3 -c 'import pathlib; lines=pathlib.Path("smoke-test.log").read_text(errors="replace").splitlines(); chosen=[x for x in lines if "Docker-test mislukt" in x or "Chatprofiel HTTP" in x or "Onverwachte" in x]; text=" | ".join((chosen + lines[-15:])[-18:]); print("::error::" + text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))'
+            python3 -c 'import pathlib; lines=pathlib.Path("smoke-test.log").read_text(errors="replace").splitlines(); chosen=[x for x in lines if "Docker-test mislukt" in x or "Chatprofiel HTTP" in x or "Onverwachte" in x or "Browserdiagnose" in x]; text=" | ".join((chosen + lines[-15:])[-18:]); print("::error::" + text.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A"))'
           else
             cat smoke-test.log
           fi
