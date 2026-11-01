@@ -117,14 +117,29 @@
   let noticeTimer, noticePending = false, unreadSeen = false, unreadRequest = 0, unreadLatest = {};
   let me, rooms = [], selected = '', settingsOpen = false, creating = false, busy = false, lastMessages = '', firstLoad = true, unreadRooms = {}, marked = {}, marking = {};
 
-  // Jellyfin 12.4 has both a classic header and a React/MUI toolbar. Reattach after SPA navigation.
+  // Jellyfin can keep a hidden header in the DOM while switching views.
+  // Attach only to a visible toolbar; otherwise keep a non-overlapping fallback.
+  function visibleHeader(node) {
+    if (!node || !node.isConnected || !node.getClientRects().length) return false;
+    const rect = node.getBoundingClientRect();
+    if (rect.bottom <= 0 || rect.top >= window.innerHeight || rect.right <= 0 || rect.left >= window.innerWidth) return false;
+    for (let parent = node; parent && parent !== document.body; parent = parent.parentElement) {
+      if (parent.hidden || parent.getAttribute('aria-hidden') === 'true' || parent.classList.contains('hide')) return false;
+      const css = getComputedStyle(parent);
+      if (css.display === 'none' || css.visibility === 'hidden' || css.visibility === 'collapse') return false;
+    }
+    return true;
+  }
   function placeButton() {
-    const legacy = document.querySelector('.skinHeader:not(.osdHeader) .headerRight');
-    const userButton = document.querySelector('.MuiAppBar-root .MuiToolbar-root button[aria-controls="app-user-menu"]');
-    const toolbar = userButton?.closest('.MuiToolbar-root');
-    const modern = userButton?.parentElement?.previousElementSibling;
-    const target = (toolbar && modern?.parentElement === toolbar ? modern : null) || (legacy && !legacy.closest('.hide, [hidden], [aria-hidden="true"]') ? legacy : null);
-    button.classList.toggle('jfc-fallback', !target);
+    const modernUser = [...document.querySelectorAll('.MuiAppBar-root .MuiToolbar-root button[aria-controls="app-user-menu"]')]
+      .find(node => visibleHeader(node.closest('.MuiAppBar-root')));
+    const toolbar = modernUser?.closest('.MuiToolbar-root');
+    const modern = modernUser?.parentElement?.previousElementSibling;
+    const classic = [...document.querySelectorAll('.skinHeader:not(.osdHeader) .headerRight')]
+      .find(node => visibleHeader(node.closest('.skinHeader')));
+    const target = (toolbar && modern?.parentElement === toolbar ? modern : null) || classic;
+    const fallback = !target;
+    if (button.classList.contains('jfc-fallback') !== fallback) button.classList.toggle('jfc-fallback', fallback);
     if (target && button.parentElement !== target) {
       const user = target.querySelector('.headerUserButton');
       target.insertBefore(button, user || null);
@@ -135,14 +150,15 @@
     if (placementQueued) return;
     placementQueued = true;
     requestAnimationFrame(() => { placementQueued = false; placeButton(); });
-  }).observe(document.body, { childList: true, subtree: true });
+  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'aria-hidden'] });
+  window.addEventListener('resize', placeButton);
   placeButton();
 
   function client() { return window.ApiClient; }
   async function api(path, method = 'GET', body) {
     const c = client(); if (!c || !c.accessToken()) throw new Error('Niet aangemeld');
     const response = await fetch(c.getUrl('ChatPlugin/' + path), { method, headers: { 'Authorization': 'MediaBrowser Token="' + encodeURIComponent(c.accessToken()) + '"', ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
-    if (!response.ok) throw new Error('Chatverzoek mislukt (' + response.status + ')');
+    if (!response.ok) { const err = new Error('Chatverzoek mislukt (' + response.status + ')'); err.status = response.status; throw err; }
     const content = await response.text(); return content ? JSON.parse(content) : null;
   }
   function error(err) { const e = panel.querySelector('.jfc-error'); if (e) e.textContent = err.message || 'Er is iets misgegaan.'; }
@@ -307,7 +323,39 @@
   }
   button.onclick = async () => { if (!panel.hidden) { closePanel(); return; } noticePending = false; hideNotice(); panel.hidden = false; button.setAttribute('aria-expanded', 'true'); settingsOpen = false; creating = false; firstLoad = true; try { await render(); } catch(e) { error(e); } };
   panel.addEventListener('keydown', event => { if (event.key === 'Escape') closePanel(); });
-  async function check() { try { const current = await api('me'); if (me && normalizeId(me.userId) !== normalizeId(current.userId)) { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); selected = ''; lastMessages = ''; resetUnread(); } me = current; button.hidden = !me.enabled; if (!me.enabled) { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); resetUnread(); } else await refreshUnread(); } catch { button.hidden = true; panel.hidden = true; button.setAttribute('aria-expanded', 'false'); me = null; resetUnread(); } }
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) { if (noticePending) showNotice(unreadRooms); if (!panel.hidden && !settingsOpen && !creating) loadMessages().catch(error); } else hideNotice(); });
-  check(); setInterval(check, 10000); setInterval(() => { if (me?.enabled) refreshUnread(); if (!panel.hidden && !settingsOpen && !creating && !document.hidden) loadMessages().catch(error); }, 4000);
+  let confirmedToken = null, checkSequence = 0;
+  function clearSession() {
+    button.hidden = true; panel.hidden = true; button.setAttribute('aria-expanded', 'false');
+    me = null; confirmedToken = null; selected = ''; lastMessages = ''; resetUnread();
+  }
+  async function check() {
+    const sequence = ++checkSequence;
+    placeButton();
+    let token;
+    try {
+      token = client()?.accessToken();
+      if (!token) { clearSession(); return; }
+      if (confirmedToken && confirmedToken !== token) clearSession();
+      const current = await api('me');
+      if (sequence !== checkSequence) return;
+      // A delayed response from an earlier session must not reveal its chat.
+      const activeToken = client()?.accessToken();
+      if (activeToken !== token) { if (!activeToken || confirmedToken === token) clearSession(); return; }
+      if (me && normalizeId(me.userId) !== normalizeId(current.userId)) {
+        panel.hidden = true; button.setAttribute('aria-expanded', 'false'); selected = ''; lastMessages = ''; resetUnread();
+      }
+      me = current; confirmedToken = token; button.hidden = !me.enabled;
+      if (!me.enabled) { panel.hidden = true; button.setAttribute('aria-expanded', 'false'); resetUnread(); }
+      else await refreshUnread();
+    } catch (err) {
+      if (sequence !== checkSequence) return;
+      // Keep an already-authorized button visible during temporary network/server errors.
+      // Authentication failures and session changes still fail closed.
+      if (!token || token !== confirmedToken || err.status === 401 || err.status === 403) clearSession();
+      else if (!panel.hidden) error(new Error('Chat tijdelijk niet bereikbaar. Probeer het opnieuw.'));
+    }
+  }
+
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { check(); if (noticePending) showNotice(unreadRooms); if (!panel.hidden && !settingsOpen && !creating) loadMessages().catch(error); } else hideNotice(); });
+  check(); setInterval(check, 5000); setInterval(() => { if (me?.enabled) refreshUnread(); if (!panel.hidden && !settingsOpen && !creating && !document.hidden) loadMessages().catch(error); }, 4000);
 })();
